@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Phase Templates - GEA Portal{% endblock %}
+{% block page_header %}Phase Templates{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Phase Templates</h4>
+        <p class="text-muted mb-0">Upload document templates for each certification phase</p>
+    </div>
+    <a href="{{ url_for('upload_template') }}" class="btn btn-gea">
+        <i class="bi bi-upload me-2"></i>Upload Template
+    </a>
+</div>
+
+{% for phase_num, phase_data in phases.items() %}
+<div class="card mb-4">
+    <div class="card-header">
+        <span class="badge bg-primary me-2">Phase {{ phase_num }}</span>
+        {{ phase_data.name }}
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-3">Document Type</th>
+                    <th>Current Template</th>
+                    <th>Uploaded</th>
+                    <th class="text-end pe-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in phase_data.documents %}
+                {% set template = templates|selectattr('phase_number', 'equalto', phase_num)|selectattr('document_key', 'equalto', doc.key)|first %}
+                <tr>
+                    <td class="ps-3">
+                        <div class="fw-medium">{{ doc.name }}</div>
+                        <small class="text-muted">{{ doc.key }}</small>
+                    </td>
+                    <td>
+                        {% if template %}
+                        <span class="text-success"><i class="bi bi-check-circle me-1"></i>{{ template.original_filename }}</span>
+                        {% else %}
+                        <span class="text-muted">No template uploaded</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if template %}
+                        {{ template.uploaded_at.strftime('%b %d, %Y') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-3">
+                        {% if template %}
+                        <a href="{{ url_for('download_template', template_id=template.id) }}" class="btn btn-sm btn-light">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        {% endif %}
+                        <a href="{{ url_for('upload_template') }}?phase={{ phase_num }}&doc={{ doc.key }}" class="btn btn-sm btn-gea-outline">
+                            {% if template %}Replace{% else %}Upload{% endif %}
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

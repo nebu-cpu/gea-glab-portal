@@ -1,57 +1,130 @@
 {% extends "base.html" %}
 
-{% block title %}Upload Document - GEA Portal{% endblock %}
-{% block page_header %}Upload Document{% endblock %}
+{% block title %}Upload Documents - {{ project.reference_number }} - GEA Portal{% endblock %}
+{% block page_header %}Phase {{ phase.name if phase else project.current_phase }} Documents{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-6">
+<div class="mb-4">
+    <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-sm btn-light mb-2">
+        <i class="bi bi-arrow-left me-1"></i>Back to Project
+    </a>
+    <h4 class="fw-bold mb-1">{{ project.reference_number }} - Document Upload</h4>
+    <p class="text-muted mb-0">Phase {{ project.current_phase }}: {{ phase.name }}</p>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Upload Document to {{ project.reference_number }}</h5>
+                <i class="bi bi-folder me-2"></i>Required Documents for This Phase
             </div>
             <div class="card-body">
-                <form method="POST" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label class="form-label">Document Type <span class="text-danger">*</span></label>
-                        <select name="document_type" class="form-select" required>
-                            <option value="">Select type...</option>
-                            {% for value, label in document_types %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                {% for doc_slot in document_slots %}
+                <div class="document-slot mb-4 pb-4 {% if not loop.last %}border-bottom{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h6 class="fw-bold mb-1">
+                                {{ doc_slot.name }}
+                                {% if doc_slot.required %}
+                                <span class="badge bg-danger ms-1">Required</span>
+                                {% else %}
+                                <span class="badge bg-secondary ms-1">Optional</span>
+                                {% endif %}
+                            </h6>
+                        </div>
+                        {% if existing_docs.get(doc_slot.key) %}
+                        <span class="status-badge status-{{ existing_docs[doc_slot.key].status }}">
+                            {{ existing_docs[doc_slot.key].status.replace('_', ' ').title() }}
+                        </span>
+                        {% endif %}
                     </div>
                     
-                    <div class="mb-3">
-                        <label class="form-label">File <span class="text-danger">*</span></label>
-                        <input type="file" name="file" class="form-control" required accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif">
-                        <small class="text-muted">Allowed: PDF, Word, Excel, Images (max 50MB)</small>
+                    {% if existing_docs.get(doc_slot.key) %}
+                    <!-- Existing Document -->
+                    <div class="bg-light rounded p-3 mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-file-earmark-check fs-4 text-success"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-medium">{{ existing_docs[doc_slot.key].original_filename }}</div>
+                                <small class="text-muted">
+                                    Uploaded {{ existing_docs[doc_slot.key].uploaded_at.strftime('%b %d, %Y') }}
+                                </small>
+                            </div>
+                            <a href="{{ url_for('download_document', document_id=existing_docs[doc_slot.key].id) }}" 
+                               class="btn btn-sm btn-light">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                        {% if existing_docs[doc_slot.key].review_notes %}
+                        <div class="mt-2 p-2 bg-white rounded border-start border-3 border-warning">
+                            <small class="text-muted">GEA Notes:</small>
+                            <div>{{ existing_docs[doc_slot.key].review_notes }}</div>
+                        </div>
+                        {% endif %}
                     </div>
+                    {% endif %}
                     
-                    <div class="mb-4">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="2" placeholder="Optional description..."></textarea>
-                    </div>
+                    <!-- Upload Form -->
+                    <form method="POST" enctype="multipart/form-data" class="mt-2">
+                        <input type="hidden" name="document_key" value="{{ doc_slot.key }}">
+                        <div class="input-group">
+                            <input type="file" name="file" class="form-control" 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif">
+                            <button type="submit" class="btn btn-gea">
+                                <i class="bi bi-upload me-1"></i>
+                                {% if existing_docs.get(doc_slot.key) %}Replace{% else %}Upload{% endif %}
+                            </button>
+                        </div>
+                    </form>
                     
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-gea">
-                            <i class="bi bi-upload me-2"></i>Upload
-                        </button>
-                        <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-light">Cancel</a>
+                    <!-- Template Download -->
+                    {% if templates.get(doc_slot.key) %}
+                    <div class="mt-2">
+                        <a href="{{ url_for('download_template', template_id=templates[doc_slot.key].id) }}" 
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-file-earmark-arrow-down me-1"></i>Download Template
+                        </a>
                     </div>
-                </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Phase Info -->
+        <div class="card mb-4">
+            <div class="card-header">Phase {{ project.current_phase }} Overview</div>
+            <div class="card-body">
+                <h6 class="fw-bold">{{ phase.name }}</h6>
+                <p class="text-muted small mb-0">
+                    Upload the required documents for this phase. GEA will review and approve each document before you can proceed.
+                </p>
             </div>
         </div>
         
-        <div class="alert alert-info mt-4">
-            <h6><i class="bi bi-info-circle me-2"></i>Document Requirements (Article 8)</h6>
-            <ul class="mb-0 small">
-                <li><strong>Proposal:</strong> Submit before issuing to client</li>
-                <li><strong>Letter of Engagement:</strong> Within 5 days of execution</li>
-                <li><strong>Invoice:</strong> Within 5 days of issuance</li>
-                <li><strong>Payment Proof:</strong> Within 5 days of receipt</li>
-                <li><strong>Assessment Report:</strong> Per SLA requirements</li>
-            </ul>
+        <!-- All Phases Reference -->
+        <div class="card">
+            <div class="card-header">All 8 Phases</div>
+            <div class="list-group list-group-flush">
+                {% for p_num in range(1, 9) %}
+                <div class="list-group-item d-flex justify-content-between align-items-center 
+                            {% if p_num == project.current_phase %}bg-light{% endif %}">
+                    <div>
+                        <span class="badge {% if p_num < project.current_phase %}bg-success{% elif p_num == project.current_phase %}bg-primary{% else %}bg-secondary{% endif %} me-2">
+                            {{ p_num }}
+                        </span>
+                        <span class="small">{{ phases[p_num].name[:30] }}{% if phases[p_num].name|length > 30 %}...{% endif %}</span>
+                    </div>
+                    {% if p_num < project.current_phase %}
+                    <i class="bi bi-check-circle text-success"></i>
+                    {% elif p_num == project.current_phase %}
+                    <i class="bi bi-arrow-right-circle text-primary"></i>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 </div>

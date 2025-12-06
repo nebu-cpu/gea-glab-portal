@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}GEA-GLAB Portal{% endblock %}</title>
+    <title>{% block title %}GEA Portal - GLAB Management System{% endblock %}</title>
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -431,45 +431,45 @@
                 <span>Dashboard</span>
             </a>
             
-            <div class="nav-section">Management</div>
-            
             {% if current_user.role == 'gea_admin' %}
+            <div class="nav-section">Administration</div>
+            
+            <a href="{{ url_for('list_users') }}" class="nav-link {% if 'user' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-person-gear"></i>
+                <span>Users & Accounts</span>
+            </a>
+            
             <a href="{{ url_for('list_glabs') }}" class="nav-link {% if 'glab' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-building"></i>
                 <span>GLABs</span>
             </a>
+            
+            <a href="{{ url_for('list_templates') }}" class="nav-link {% if 'template' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Phase Templates</span>
+            </a>
             {% endif %}
+            
+            <div class="nav-section">Management</div>
             
             <a href="{{ url_for('list_clients') }}" class="nav-link {% if 'client' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-people"></i>
                 <span>Clients</span>
             </a>
             
-            <a href="{{ url_for('list_projects') }}" class="nav-link {% if 'project' in request.endpoint and 'review' not in request.endpoint %}active{% endif %}">
+            <a href="{{ url_for('list_projects') }}" class="nav-link {% if 'project' in request.endpoint and 'review' not in request.endpoint and 'chat' not in request.endpoint %}active{% endif %}">
                 <i class="bi bi-folder"></i>
                 <span>Projects</span>
             </a>
             
-            {% if current_user.role == 'gea_admin' %}
-            <div class="nav-section">Review</div>
+            {% if current_user.role in ['gea_admin', 'gea_staff'] %}
+            <div class="nav-section">GEA Review</div>
             
             <a href="{{ url_for('pending_reviews') }}" class="nav-link {% if 'review' in request.endpoint %}active{% endif %}">
                 <i class="bi bi-clipboard-check"></i>
                 <span>Pending Reviews</span>
             </a>
             {% endif %}
-            
-            <div class="nav-section">Finance</div>
-            
-            <a href="{{ url_for('financial_overview') }}" class="nav-link {% if 'financial' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-cash-stack"></i>
-                <span>Financials</span>
-            </a>
-            
-            <a href="{{ url_for('monthly_report') }}" class="nav-link {% if 'report' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-file-earmark-bar-graph"></i>
-                <span>Reports</span>
-            </a>
         </div>
     </nav>
     

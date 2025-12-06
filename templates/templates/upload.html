@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Template - GEA Portal{% endblock %}
+{% block page_header %}Upload Template{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Upload Phase Template</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Phase <span class="text-danger">*</span></label>
+                        <select name="phase_number" id="phaseSelect" class="form-select" required onchange="updateDocuments()">
+                            <option value="">Select phase...</option>
+                            {% for phase_num, phase_data in phases.items() %}
+                            <option value="{{ phase_num }}" {{ 'selected' if request.args.get('phase') == phase_num|string }}>
+                                Phase {{ phase_num }}: {{ phase_data.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Document Type <span class="text-danger">*</span></label>
+                        <select name="document_key" id="docSelect" class="form-select" required>
+                            <option value="">Select document type...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Template Name</label>
+                        <input type="text" name="template_name" class="form-control" placeholder="Optional display name">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">Template File <span class="text-danger">*</span></label>
+                        <input type="file" name="file" class="form-control" required>
+                        <small class="text-muted">PDF, Word, Excel, or image files (max 50MB)</small>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-upload me-2"></i>Upload Template
+                        </button>
+                        <a href="{{ url_for('list_templates') }}" class="btn btn-light">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const phaseDocuments = {
+    {% for phase_num, phase_data in phases.items() %}
+    {{ phase_num }}: [
+        {% for doc in phase_data.documents %}
+        {key: '{{ doc.key }}', name: '{{ doc.name }}'},
+        {% endfor %}
+    ],
+    {% endfor %}
+};
+
+function updateDocuments() {
+    const phase = document.getElementById('phaseSelect').value;
+    const docSelect = document.getElementById('docSelect');
+    const preselectedDoc = '{{ request.args.get("doc", "") }}';
+    
+    docSelect.innerHTML = '<option value="">Select document type...</option>';
+    
+    if (phase && phaseDocuments[phase]) {
+        phaseDocuments[phase].forEach(doc => {
+            const option = document.createElement('option');
+            option.value = doc.key;
+            option.textContent = doc.name;
+            if (doc.key === preselectedDoc) option.selected = true;
+            docSelect.appendChild(option);
+        });
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', updateDocuments);
+</script>
+{% endblock %}

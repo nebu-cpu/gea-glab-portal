@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - GEA Portal{% endblock %}
+{% block page_header %}My Projects{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h4 class="fw-bold mb-1">Welcome, {{ current_user.full_name or current_user.username }}</h4>
+    <p class="text-muted mb-0">Assessor Dashboard - Projects assigned to you</p>
+</div>
+
+{% if projects %}
+<div class="row g-4">
+    {% for project in projects %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-bold">{{ project.reference_number }}</span>
+                <span class="badge bg-primary">Phase {{ project.current_phase }}</span>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-3">
+                    <tr>
+                        <td class="text-muted">Client</td>
+                        <td class="text-end fw-medium">{{ project.client.name[:20] }}{% if project.client.name|length > 20 %}...{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">GLAB</td>
+                        <td class="text-end">{{ project.glab.name[:20] }}{% if project.glab.name|length > 20 %}...{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Type</td>
+                        <td class="text-end">{{ project.assessment_type.title() }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Current Phase</td>
+                        <td class="text-end">{{ phases[project.current_phase].name[:25] }}{% if phases[project.current_phase].name|length > 25 %}...{% endif %}</td>
+                    </tr>
+                </table>
+                
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-gea btn-sm flex-fill">
+                        <i class="bi bi-folder-open me-1"></i>View Project
+                    </a>
+                    <a href="{{ url_for('project_chat', project_id=project.id) }}" class="btn btn-gea-outline btn-sm">
+                        <i class="bi bi-chat-dots"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-folder-x fs-1 text-muted d-block mb-3"></i>
+        <h5>No Projects Assigned</h5>
+        <p class="text-muted mb-0">You don't have any projects assigned to you yet.</p>
+        <p class="text-muted">Contact your GLAB administrator to be assigned to projects.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

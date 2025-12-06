@@ -134,7 +134,7 @@
         <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>GLABs</span>
-                <a href="{{ url_for('new_glab') }}" class="btn btn-sm btn-gea">
+                <a href="{{ url_for('create_glab') }}" class="btn btn-sm btn-gea">
                     <i class="bi bi-plus"></i> Add
                 </a>
             </div>
@@ -171,21 +171,21 @@
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="{{ url_for('new_glab') }}" class="btn btn-gea-outline w-100 py-3">
+                        <a href="{{ url_for('create_glab') }}" class="btn btn-gea-outline w-100 py-3">
                             <i class="bi bi-building d-block fs-4 mb-2"></i>
                             Add New GLAB
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="{{ url_for('financial_overview') }}" class="btn btn-gea-outline w-100 py-3">
-                            <i class="bi bi-cash-stack d-block fs-4 mb-2"></i>
-                            Financial Overview
+                        <a href="{{ url_for('list_users') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-person-gear d-block fs-4 mb-2"></i>
+                            Manage Users
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="{{ url_for('monthly_report') }}" class="btn btn-gea-outline w-100 py-3">
-                            <i class="bi bi-file-earmark-bar-graph d-block fs-4 mb-2"></i>
-                            Monthly Reports
+                        <a href="{{ url_for('list_templates') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-file-earmark-text d-block fs-4 mb-2"></i>
+                            Phase Templates
                         </a>
                     </div>
                 </div>

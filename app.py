@@ -1,7 +1,7 @@
 """
-GEA-GLAB Management Portal
+GEA Portal - GLAB Management System
 Comprehensive portal for managing GLAB operations, client certifications, 
-documents, and financial tracking under the GEA Financial Operations Framework.
+documents, and financial tracking under the GEA Standard.
 """
 
 import os
@@ -17,9 +17,10 @@ from werkzeug.utils import secure_filename
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'gea-glab-portal-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///glab_portal.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///glab_portal_v2.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['TEMPLATES_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'phase_templates')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 # Allowed file extensions
@@ -30,374 +31,411 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Ensure upload directory exists
+# Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['TEMPLATES_FOLDER'], exist_ok=True)
+
+# =============================================================================
+# 8 PHASES DEFINITION (from GEAS-Doc Set & Workflow Order)
+# =============================================================================
+
+PHASES = {
+    1: {
+        'name': 'Expression of Interest & Enrollment',
+        'key': 'enrollment',
+        'documents': [
+            {'key': 'enrollment_form', 'name': 'GEA Certification Enrollment Form', 'required': True},
+            {'key': 'readiness_checklist', 'name': 'Enrollment Readiness Criteria/Checklist', 'required': True},
+        ],
+        'default_checklist': [
+            'Receive expression of interest from organization',
+            'Review enrollment form for completeness',
+            'Verify organization eligibility',
+            'Capture baseline profile',
+            'Make eligibility decision (accept/defer/request info)',
+            'Notify organization of decision',
+        ]
+    },
+    2: {
+        'name': 'Ethical Safeguards & Assessor Assignment',
+        'key': 'safeguards',
+        'documents': [
+            {'key': 'coi_declaration', 'name': 'Conflict of Interest Declaration', 'required': True},
+            {'key': 'code_of_conduct', 'name': 'Assessor Code of Conduct & Posture Guide', 'required': True},
+            {'key': 'assessor_checklist', 'name': 'GEA Assessor Checklist', 'required': True},
+        ],
+        'default_checklist': [
+            'Assign assessor(s) to the project',
+            'Complete Conflict of Interest Declaration',
+            'Assessor signs Code of Conduct',
+            'Verify assessor neutrality',
+            'Confirm assessor cleared to engage',
+        ]
+    },
+    3: {
+        'name': 'Preliminary Assessment (Optional)',
+        'key': 'preliminary',
+        'documents': [
+            {'key': 'preliminary_request', 'name': 'Preliminary Assessment Request Form', 'required': False},
+            {'key': 'preliminary_report', 'name': 'Preliminary Assessment Report', 'required': False},
+        ],
+        'default_checklist': [
+            'Receive preliminary assessment request (if applicable)',
+            'Conduct light diagnostic review',
+            'Prepare preliminary assessment report',
+            'Share non-binding findings with organization',
+            'Organization decides on readiness to proceed',
+        ]
+    },
+    4: {
+        'name': 'Engagement & Planning',
+        'key': 'engagement',
+        'documents': [
+            {'key': 'letter_of_engagement', 'name': 'Letter of Engagement', 'required': True},
+            {'key': 'planning_form', 'name': 'Assessment Planning & Logistics Form', 'required': True},
+            {'key': 'timeline_map', 'name': 'Assessment Timeline & Workflow Map', 'required': True},
+        ],
+        'default_checklist': [
+            'Issue Letter of Engagement to organization',
+            'Organization signs Letter of Engagement',
+            'Complete Assessment Planning & Logistics Form',
+            'Define scope and assessor team roles',
+            'Share Assessment Timeline & Workflow Map',
+            'Collect initial payment (50%)',
+            'Remit GEA fee for initial payment',
+        ]
+    },
+    5: {
+        'name': 'Formal Assessment',
+        'key': 'assessment',
+        'documents': [
+            {'key': 'triangulation_checklist', 'name': 'Triangulation Checklist Sheet', 'required': True},
+            {'key': 'rca_worksheet', 'name': 'Root Cause Analysis (RCA) Worksheet', 'required': True},
+            {'key': 'ncr_form', 'name': 'Non-Conformance Tracker (NCR / CAR Form)', 'required': True},
+        ],
+        'default_checklist': [
+            'Conduct document review',
+            'Perform on-site assessment',
+            'Complete Triangulation Checklist',
+            'Collect and cross-check evidence',
+            'Complete Root Cause Analysis worksheet',
+            'Issue Non-Conformances (if any)',
+            'Set deadlines for Corrective Action Requests',
+        ]
+    },
+    6: {
+        'name': 'Reporting & Peer Review',
+        'key': 'reporting',
+        'documents': [
+            {'key': 'assessment_report', 'name': 'Formal Assessment Report', 'required': True},
+            {'key': 'peer_review_checklist', 'name': 'Peer Review Guide / Checklist', 'required': True},
+        ],
+        'default_checklist': [
+            'Draft Formal Assessment Report',
+            'Submit report for peer review',
+            'Complete Peer Review checklist',
+            'Address peer review feedback',
+            'Finalize assessment report',
+            'Submit report to GEA for review',
+        ]
+    },
+    7: {
+        'name': 'Certification Decision',
+        'key': 'certification',
+        'documents': [
+            {'key': 'decision_record', 'name': 'Certification Decision Record', 'required': True},
+            {'key': 'feedback_report', 'name': 'Feedback Report to Organization', 'required': True},
+        ],
+        'default_checklist': [
+            'Convene certification committee',
+            'Review all assessment evidence',
+            'Make certification decision',
+            'Complete Certification Decision Record',
+            'Submit to GEA for final review',
+            'Prepare Feedback Report',
+            'Collect final payment (50%)',
+            'Remit GEA fee for final payment',
+            'Deliver decision and feedback to organization',
+        ]
+    },
+    8: {
+        'name': 'Post-Certification Obligations',
+        'key': 'post_certification',
+        'documents': [
+            {'key': 'change_notification', 'name': 'Change Notification Form', 'required': False},
+            {'key': 'feedback_form', 'name': 'Feedback Form on GLAB Services', 'required': False},
+        ],
+        'default_checklist': [
+            'Schedule surveillance assessments',
+            'Monitor for significant changes',
+            'Process change notifications (if any)',
+            'Collect feedback on GLAB services',
+            'Archive all project documentation',
+            'Plan for recertification (if applicable)',
+        ]
+    }
+}
 
 # =============================================================================
 # DATABASE MODELS
 # =============================================================================
 
 class User(UserMixin, db.Model):
-    """User model for authentication - GEA admins and GLAB users"""
+    """User model - GEA admins, GEA staff, GLAB admins, GLAB assessors"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # 'gea_admin', 'glab_admin', 'glab_user'
+    full_name = db.Column(db.String(120))
+    role = db.Column(db.String(20), nullable=False)  # 'gea_admin', 'gea_staff', 'glab_admin', 'glab_assessor'
     glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     
-    glab = db.relationship('GLAB', backref='users')
+    # Relationships
+    glab = db.relationship('GLAB', backref='users', foreign_keys=[glab_id])
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    def is_gea(self):
+        return self.role in ['gea_admin', 'gea_staff']
+    
+    def is_gea_admin(self):
+        return self.role == 'gea_admin'
 
 
 class GLAB(db.Model):
-    """GLAB (Licensed Assessment Body) model"""
+    """Licensed Assessment Body"""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     license_number = db.Column(db.String(50), unique=True, nullable=False)
     country = db.Column(db.String(100), nullable=False)
-    address = db.Column(db.Text, nullable=True)
+    address = db.Column(db.Text)
     contact_email = db.Column(db.String(120), nullable=False)
-    contact_phone = db.Column(db.String(50), nullable=True)
+    contact_phone = db.Column(db.String(50))
     status = db.Column(db.String(20), default='active')  # active, suspended, terminated
-    pre_approved = db.Column(db.Boolean, default=False)  # Pre-Approval Status per Article 4.4
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     
+    # Relationships
     clients = db.relationship('Client', backref='glab', lazy='dynamic')
     projects = db.relationship('Project', backref='glab', lazy='dynamic')
 
 
 class Client(db.Model):
-    """Client/Organization seeking certification"""
+    """Client organization seeking certification"""
     id = db.Column(db.Integer, primary_key=True)
-    glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=False)
     name = db.Column(db.String(200), nullable=False)
-    registered_address = db.Column(db.Text, nullable=True)
     country = db.Column(db.String(100), nullable=False)
-    industry_sector = db.Column(db.String(100), nullable=True)
-    total_employees = db.Column(db.Integer, nullable=True)
+    registered_address = db.Column(db.Text)
+    industry_sector = db.Column(db.String(100))
+    total_employees = db.Column(db.Integer)
     number_of_sites = db.Column(db.Integer, default=1)
-    primary_contact_name = db.Column(db.String(100), nullable=True)
-    primary_contact_email = db.Column(db.String(120), nullable=False)
-    primary_contact_phone = db.Column(db.String(50), nullable=True)
+    primary_contact_name = db.Column(db.String(100))
+    primary_contact_email = db.Column(db.String(120))
+    primary_contact_phone = db.Column(db.String(50))
+    glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # Relationships
     projects = db.relationship('Project', backref='client', lazy='dynamic')
 
 
+# Association table for assessors assigned to projects
+project_assessors = db.Table('project_assessors',
+    db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
+)
+
+
 class Project(db.Model):
-    """Assessment project/engagement"""
+    """Certification project"""
     id = db.Column(db.Integer, primary_key=True)
     reference_number = db.Column(db.String(50), unique=True, nullable=False)
     glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=False)
     client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
     
-    # Assessment Type
-    assessment_type = db.Column(db.String(50), nullable=False)  # initial, recertification, surveillance, endorsement, followup
+    # Assessment details
+    assessment_type = db.Column(db.String(50), default='initial')  # initial, surveillance, recertification
+    current_phase = db.Column(db.Integer, default=1)  # 1-8
     
-    # Current Phase
-    current_phase = db.Column(db.String(50), default='proposal')
-    # Phases: proposal, engagement, assessment, reporting, certification, post_certification
+    # GEA Review Status
+    gea_status = db.Column(db.String(30), default='pending')  # pending, approved, changes_requested, denied
+    gea_notes = db.Column(db.Text)
+    gea_reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    gea_reviewed_at = db.Column(db.DateTime)
     
-    # Phase Statuses (JSON stored as string for simplicity)
-    phase_status = db.Column(db.Text, default='{}')
-    
-    # Financial Information
-    assessment_days = db.Column(db.Integer, nullable=True)
-    day_rate = db.Column(db.Float, nullable=True)
-    multi_site_premium = db.Column(db.Float, default=0)
-    other_fees = db.Column(db.Float, default=0)
-    total_assessment_fees = db.Column(db.Float, nullable=True)
-    travel_accommodation = db.Column(db.Float, default=0)
-    applicable_taxes = db.Column(db.Float, default=0)
-    
-    # GEA Fee (15%)
-    net_assessment_fees = db.Column(db.Float, nullable=True)
-    gea_fee = db.Column(db.Float, nullable=True)
-    glab_revenue = db.Column(db.Float, nullable=True)
-    
-    # Payment Tracking
+    # Financial
+    total_assessment_fees = db.Column(db.Float, default=0)
+    gea_fee = db.Column(db.Float, default=0)
+    glab_revenue = db.Column(db.Float, default=0)
     initial_payment_received = db.Column(db.Boolean, default=False)
-    initial_payment_date = db.Column(db.DateTime, nullable=True)
-    initial_payment_amount = db.Column(db.Float, nullable=True)
+    initial_payment_date = db.Column(db.DateTime)
     final_payment_received = db.Column(db.Boolean, default=False)
-    final_payment_date = db.Column(db.DateTime, nullable=True)
-    final_payment_amount = db.Column(db.Float, nullable=True)
-    
-    # GEA Fee Remittance
+    final_payment_date = db.Column(db.DateTime)
     gea_fee_remitted = db.Column(db.Boolean, default=False)
-    gea_fee_remittance_date = db.Column(db.DateTime, nullable=True)
+    gea_fee_remitted_date = db.Column(db.DateTime)
     
-    # Timeline
-    proposed_start_date = db.Column(db.DateTime, nullable=True)
-    document_review_date = db.Column(db.DateTime, nullable=True)
-    onsite_assessment_start = db.Column(db.DateTime, nullable=True)
-    onsite_assessment_end = db.Column(db.DateTime, nullable=True)
-    draft_report_date = db.Column(db.DateTime, nullable=True)
-    final_report_date = db.Column(db.DateTime, nullable=True)
-    certification_decision_date = db.Column(db.DateTime, nullable=True)
-    
-    # Assessment Team
-    lead_assessor = db.Column(db.String(100), nullable=True)
-    technical_specialist = db.Column(db.String(100), nullable=True)
-    additional_team_members = db.Column(db.Text, nullable=True)
-    
-    # GEA Review
-    gea_proposal_status = db.Column(db.String(20), default='pending')  # pending, approved, adjustment_required, rejected
-    gea_reviewer = db.Column(db.String(100), nullable=True)
-    gea_review_date = db.Column(db.DateTime, nullable=True)
-    gea_review_notes = db.Column(db.Text, nullable=True)
-    
-    # Certification Outcome
-    certification_status = db.Column(db.String(50), nullable=True)  # pending, full, conditional, endorsement, deferred, denied
-    certification_date = db.Column(db.DateTime, nullable=True)
-    certification_expiry = db.Column(db.DateTime, nullable=True)
-    
-    # Metadata
+    # Dates
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    notes = db.Column(db.Text, nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     
     # Relationships
     documents = db.relationship('Document', backref='project', lazy='dynamic')
-    checklist_items = db.relationship('ChecklistItem', backref='project', lazy='dynamic')
+    checklists = db.relationship('ChecklistItem', backref='project', lazy='dynamic')
     phase_logs = db.relationship('PhaseLog', backref='project', lazy='dynamic')
+    messages = db.relationship('ChatMessage', backref='project', lazy='dynamic')
+    assessors = db.relationship('User', secondary=project_assessors, backref='assigned_projects')
 
 
 class Document(db.Model):
-    """Document uploads and tracking"""
+    """Document uploaded for a project phase"""
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
-    
-    # Document Info
-    document_type = db.Column(db.String(50), nullable=False)
-    # Types: proposal, letter_of_engagement, invoice, payment_proof, assessment_report, 
-    #        certification_certificate, other
-    filename = db.Column(db.String(255), nullable=False)
+    phase_number = db.Column(db.Integer, nullable=False)
+    document_key = db.Column(db.String(50), nullable=False)  # e.g., 'enrollment_form', 'coi_declaration'
+    document_type = db.Column(db.String(100))  # Human readable name
     original_filename = db.Column(db.String(255), nullable=False)
-    file_path = db.Column(db.String(500), nullable=False)
-    file_size = db.Column(db.Integer, nullable=True)
-    
-    # Review Status
-    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected, changes_requested
-    reviewed_by = db.Column(db.String(100), nullable=True)
-    review_date = db.Column(db.DateTime, nullable=True)
-    review_notes = db.Column(db.Text, nullable=True)
-    
-    # Metadata
-    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    file_size = db.Column(db.Integer)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    description = db.Column(db.Text, nullable=True)
+    
+    # Review status (GEA only can change)
+    status = db.Column(db.String(20), default='pending')  # pending, approved, changes_requested, denied
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    reviewed_at = db.Column(db.DateTime)
+    review_notes = db.Column(db.Text)
+    
+    # Relationships
+    uploader = db.relationship('User', foreign_keys=[uploaded_by])
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+
+
+class PhaseTemplate(db.Model):
+    """Templates uploaded by GEA for each phase"""
+    id = db.Column(db.Integer, primary_key=True)
+    phase_number = db.Column(db.Integer, nullable=False)
+    document_key = db.Column(db.String(50), nullable=False)
+    template_name = db.Column(db.String(200), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
 
 
 class ChecklistItem(db.Model):
-    """Standard checklist items for each phase"""
+    """Checklist items for project phases"""
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
-    phase = db.Column(db.String(50), nullable=False)
-    item_text = db.Column(db.Text, nullable=False)
+    phase_number = db.Column(db.Integer, nullable=False)
+    item_text = db.Column(db.String(500), nullable=False)
     is_required = db.Column(db.Boolean, default=True)
+    is_custom = db.Column(db.Boolean, default=False)  # True if added by GEA admin
     is_completed = db.Column(db.Boolean, default=False)
-    completed_by = db.Column(db.String(100), nullable=True)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    notes = db.Column(db.Text, nullable=True)
+    completed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    completed_at = db.Column(db.DateTime)
     order = db.Column(db.Integer, default=0)
+    
+    # Relationship
+    completer = db.relationship('User', foreign_keys=[completed_by])
 
 
 class PhaseLog(db.Model):
-    """Audit log for phase transitions"""
+    """Log of phase transitions"""
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
-    from_phase = db.Column(db.String(50), nullable=True)
-    to_phase = db.Column(db.String(50), nullable=False)
-    action = db.Column(db.String(50), nullable=False)  # created, advanced, reverted, completed
-    performed_by = db.Column(db.String(100), nullable=True)
+    from_phase = db.Column(db.Integer)
+    to_phase = db.Column(db.Integer, nullable=False)
+    action = db.Column(db.String(50))
+    performed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     performed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    notes = db.Column(db.Text, nullable=True)
+    notes = db.Column(db.Text)
 
 
-class FinancialReport(db.Model):
-    """Monthly financial reports from GLABs"""
+class ChatMessage(db.Model):
+    """Chat messages between GEA and GLAB for a project"""
     id = db.Column(db.Integer, primary_key=True)
-    glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=False)
-    reporting_period = db.Column(db.String(20), nullable=False)  # YYYY-MM
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
     
-    # Engagement Summary
-    new_engagements = db.Column(db.Integer, default=0)
-    completed_engagements = db.Column(db.Integer, default=0)
-    in_progress_engagements = db.Column(db.Integer, default=0)
-    
-    # Financial Summary
-    total_invoiced = db.Column(db.Float, default=0)
-    total_payments_received = db.Column(db.Float, default=0)
-    gea_fees_due = db.Column(db.Float, default=0)
-    gea_fees_remitted = db.Column(db.Float, default=0)
-    
-    # Status
-    is_nil_activity = db.Column(db.Boolean, default=False)
-    status = db.Column(db.String(20), default='draft')  # draft, submitted, reviewed, confirmed
-    reviewed_by = db.Column(db.String(100), nullable=True)
-    review_date = db.Column(db.DateTime, nullable=True)
-    
-    # Metadata
-    submitted_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    notes = db.Column(db.Text, nullable=True)
-    
-    glab = db.relationship('GLAB', backref='financial_reports')
-
-
-# =============================================================================
-# STANDARD CHECKLIST TEMPLATES
-# =============================================================================
-
-PHASE_CHECKLISTS = {
-    'proposal': [
-        ('Prepare proposal using GEA-approved template', True),
-        ('Verify fee is within approved Fee Schedule ranges', True),
-        ('Confirm scope and timeline appropriate for organization', True),
-        ('Verify assessment team composition is adequate', True),
-        ('Check for conflicts of interest', True),
-        ('Submit proposal to GEA Portal for review', True),
-        ('Await GEA acknowledgment before issuing to client', True),
-    ],
-    'engagement': [
-        ('Receive signed Letter of Engagement from client', True),
-        ('Upload Letter of Engagement to portal within 5 days', True),
-        ('Confirm initial payment (50%) received', True),
-        ('Upload proof of initial payment', True),
-        ('Remit GEA fee for initial payment within 5 days', True),
-        ('Assign assessment team', True),
-        ('Schedule document review phase', True),
-    ],
-    'assessment': [
-        ('Complete document review', True),
-        ('Send assessment plan to client', True),
-        ('Conduct opening meeting', True),
-        ('Execute on-site assessment', True),
-        ('Collect and verify evidence', True),
-        ('Conduct closing meeting', True),
-        ('Complete assessment findings documentation', True),
-    ],
-    'reporting': [
-        ('Prepare draft assessment report', True),
-        ('Submit draft report for peer review', True),
-        ('Address peer review feedback', True),
-        ('Finalize assessment report', True),
-        ('Upload final report to portal', True),
-        ('Submit report to GEA for compliance review', True),
-        ('Deliver final report to client', True),
-    ],
-    'certification': [
-        ('Receive final payment (50%) from client', True),
-        ('Upload proof of final payment', True),
-        ('Remit GEA fee for final payment within 5 days', True),
-        ('Submit to certification committee', True),
-        ('Receive certification decision', True),
-        ('Issue certification certificate (if approved)', True),
-        ('Complete Certification Decision Record (CDR)', True),
-        ('Send feedback report to organization', True),
-    ],
-    'post_certification': [
-        ('Schedule surveillance assessment (annual)', True),
-        ('Set up change notification monitoring', True),
-        ('Plan for recertification (3-year cycle)', True),
-        ('Document lessons learned', True),
-        ('Archive project documentation', True),
-    ],
-}
+    # Relationship
+    sender = db.relationship('User', foreign_keys=[sender_id])
 
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def generate_reference_number(glab_license, year=None):
-    """Generate unique project reference number"""
-    if year is None:
-        year = datetime.now().year
-    count = Project.query.filter(
-        Project.reference_number.like(f'GEA-{glab_license}-{year}%')
-    ).count() + 1
-    return f'GEA-{glab_license}-{year}-{count:04d}'
-
-
-def calculate_fees(assessment_days, day_rate, multi_site_premium=0, other_fees=0):
-    """Calculate assessment fees and GEA fee (15%)"""
-    assessment_fees = (assessment_days * day_rate) + multi_site_premium + other_fees
-    net_fees = assessment_fees  # Before taxes
-    gea_fee = net_fees * 0.15
-    glab_revenue = net_fees * 0.85
-    return {
-        'total_assessment_fees': assessment_fees,
-        'net_assessment_fees': net_fees,
-        'gea_fee': gea_fee,
-        'glab_revenue': glab_revenue
-    }
-
-
-def create_checklist_for_project(project_id, phase):
-    """Create checklist items for a project phase"""
-    items = PHASE_CHECKLISTS.get(phase, [])
-    for idx, (item_text, is_required) in enumerate(items):
-        checklist_item = ChecklistItem(
-            project_id=project_id,
-            phase=phase,
-            item_text=item_text,
-            is_required=is_required,
-            order=idx
-        )
-        db.session.add(checklist_item)
-    db.session.commit()
-
-
-def log_phase_change(project_id, from_phase, to_phase, action, user=None, notes=None):
-    """Log phase transitions"""
-    log = PhaseLog(
-        project_id=project_id,
-        from_phase=from_phase,
-        to_phase=to_phase,
-        action=action,
-        performed_by=user,
-        notes=notes
-    )
-    db.session.add(log)
-    db.session.commit()
-
-
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-# Role-based access decorator
-def role_required(*roles):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not current_user.is_authenticated:
-                return redirect(url_for('login'))
-            if current_user.role not in roles:
-                flash('You do not have permission to access this page.', 'error')
-                return redirect(url_for('dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def generate_reference_number(glab):
+    """Generate unique project reference number"""
+    year = datetime.now().year
+    count = Project.query.filter(
+        Project.glab_id == glab.id,
+        Project.created_at >= datetime(year, 1, 1)
+    ).count() + 1
+    return f"{glab.license_number}-{year}-{count:04d}"
+
+
+def gea_admin_required(f):
+    """Decorator for GEA admin only routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_gea_admin():
+            flash('Access denied. GEA Admin privileges required.', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def gea_required(f):
+    """Decorator for GEA (admin or staff) routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_gea():
+            flash('Access denied. GEA privileges required.', 'error')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def create_default_checklists(project):
+    """Create default checklist items for all phases of a project"""
+    for phase_num, phase_data in PHASES.items():
+        for order, item_text in enumerate(phase_data['default_checklist']):
+            checklist = ChecklistItem(
+                project_id=project.id,
+                phase_number=phase_num,
+                item_text=item_text,
+                is_required=True,
+                is_custom=False,
+                order=order
+            )
+            db.session.add(checklist)
+    db.session.commit()
 
 
 # =============================================================================
-# ROUTES - AUTHENTICATION
+# AUTHENTICATION ROUTES
 # =============================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -412,10 +450,9 @@ def login():
         
         if user and user.check_password(password) and user.is_active:
             login_user(user)
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'error')
+            flash('Logged in successfully.', 'success')
+            return redirect(url_for('dashboard'))
+        flash('Invalid username or password.', 'error')
     
     return render_template('login.html')
 
@@ -424,77 +461,157 @@ def login():
 @login_required
 def logout():
     logout_user()
-    flash('You have been logged out.', 'info')
+    flash('Logged out successfully.', 'success')
     return redirect(url_for('login'))
 
 
 # =============================================================================
-# ROUTES - DASHBOARD
+# DASHBOARD ROUTES
 # =============================================================================
 
 @app.route('/')
 @login_required
 def dashboard():
-    """Main dashboard with overview"""
-    if current_user.role == 'gea_admin':
-        # GEA Admin sees all GLABs and all projects
+    if current_user.is_gea():
+        # GEA Dashboard
         glabs = GLAB.query.all()
-        projects = Project.query.order_by(Project.updated_at.desc()).limit(20).all()
-        pending_reviews = Project.query.filter_by(gea_proposal_status='pending').count()
+        pending_reviews = Project.query.filter_by(gea_status='pending').count()
         pending_documents = Document.query.filter_by(status='pending').count()
+        projects = Project.query.order_by(Project.created_at.desc()).limit(10).all()
+        unread_messages = ChatMessage.query.filter_by(is_read=False).count()
         
-        # Financial overview
+        # Calculate outstanding GEA fees
         total_gea_fees_due = db.session.query(db.func.sum(Project.gea_fee)).filter(
             Project.gea_fee_remitted == False,
-            Project.gea_fee != None
+            Project.gea_fee > 0
         ).scalar() or 0
         
         return render_template('dashboard_gea.html',
-                             glabs=glabs,
-                             projects=projects,
-                             pending_reviews=pending_reviews,
-                             pending_documents=pending_documents,
-                             total_gea_fees_due=total_gea_fees_due)
-    else:
-        # GLAB user sees their own projects
+            glabs=glabs,
+            pending_reviews=pending_reviews,
+            pending_documents=pending_documents,
+            projects=projects,
+            unread_messages=unread_messages,
+            total_gea_fees_due=total_gea_fees_due,
+            phases=PHASES
+        )
+    
+    elif current_user.role == 'glab_admin':
+        # GLAB Admin Dashboard
         glab = current_user.glab
-        if not glab:
-            flash('Your account is not associated with a GLAB.', 'error')
-            return redirect(url_for('logout'))
-        
-        projects = Project.query.filter_by(glab_id=glab.id).order_by(Project.updated_at.desc()).all()
-        clients = Client.query.filter_by(glab_id=glab.id).all()
-        
-        # Phase summary
-        phase_counts = {}
-        for phase in ['proposal', 'engagement', 'assessment', 'reporting', 'certification', 'post_certification']:
-            phase_counts[phase] = Project.query.filter_by(glab_id=glab.id, current_phase=phase).count()
+        clients = glab.clients.all() if glab else []
+        projects = glab.projects.order_by(Project.created_at.desc()).all() if glab else []
+        unread_messages = ChatMessage.query.join(Project).filter(
+            Project.glab_id == glab.id,
+            ChatMessage.is_read == False,
+            ChatMessage.sender_id != current_user.id
+        ).count() if glab else 0
         
         return render_template('dashboard_glab.html',
-                             glab=glab,
-                             projects=projects,
-                             clients=clients,
-                             phase_counts=phase_counts)
+            glab=glab,
+            clients=clients,
+            projects=projects,
+            unread_messages=unread_messages,
+            phases=PHASES
+        )
+    
+    elif current_user.role == 'glab_assessor':
+        # Assessor Dashboard - only sees assigned projects
+        projects = current_user.assigned_projects
+        
+        return render_template('dashboard_assessor.html',
+            projects=projects,
+            phases=PHASES
+        )
+    
+    return redirect(url_for('login'))
 
 
 # =============================================================================
-# ROUTES - GLAB MANAGEMENT (GEA Admin only)
+# USER MANAGEMENT (GEA Admin Only)
+# =============================================================================
+
+@app.route('/users')
+@login_required
+@gea_admin_required
+def list_users():
+    users = User.query.order_by(User.created_at.desc()).all()
+    glabs = GLAB.query.all()
+    return render_template('users/list.html', users=users, glabs=glabs)
+
+
+@app.route('/users/create', methods=['GET', 'POST'])
+@login_required
+@gea_admin_required
+def create_user():
+    glabs = GLAB.query.filter_by(status='active').all()
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        full_name = request.form.get('full_name')
+        role = request.form.get('role')
+        glab_id = request.form.get('glab_id') or None
+        
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists.', 'error')
+            return redirect(url_for('create_user'))
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists.', 'error')
+            return redirect(url_for('create_user'))
+        
+        user = User(
+            username=username,
+            email=email,
+            full_name=full_name,
+            role=role,
+            glab_id=int(glab_id) if glab_id else None,
+            created_by=current_user.id
+        )
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        flash(f'User {username} created successfully.', 'success')
+        return redirect(url_for('list_users'))
+    
+    return render_template('users/form.html', glabs=glabs, user=None)
+
+
+@app.route('/users/<int:user_id>/toggle', methods=['POST'])
+@login_required
+@gea_admin_required
+def toggle_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('Cannot deactivate your own account.', 'error')
+    else:
+        user.is_active = not user.is_active
+        db.session.commit()
+        status = 'activated' if user.is_active else 'deactivated'
+        flash(f'User {user.username} {status}.', 'success')
+    return redirect(url_for('list_users'))
+
+
+# =============================================================================
+# GLAB MANAGEMENT (GEA Admin Only)
 # =============================================================================
 
 @app.route('/glabs')
 @login_required
-@role_required('gea_admin')
+@gea_admin_required
 def list_glabs():
-    """List all GLABs"""
-    glabs = GLAB.query.all()
+    glabs = GLAB.query.order_by(GLAB.created_at.desc()).all()
     return render_template('glabs/list.html', glabs=glabs)
 
 
-@app.route('/glabs/new', methods=['GET', 'POST'])
+@app.route('/glabs/create', methods=['GET', 'POST'])
 @login_required
-@role_required('gea_admin')
-def new_glab():
-    """Create new GLAB"""
+@gea_admin_required
+def create_glab():
     if request.method == 'POST':
         glab = GLAB(
             name=request.form.get('name'),
@@ -502,12 +619,13 @@ def new_glab():
             country=request.form.get('country'),
             address=request.form.get('address'),
             contact_email=request.form.get('contact_email'),
-            contact_phone=request.form.get('contact_phone')
+            contact_phone=request.form.get('contact_phone'),
+            created_by=current_user.id
         )
         db.session.add(glab)
         db.session.commit()
         
-        flash(f'GLAB "{glab.name}" created successfully.', 'success')
+        flash(f'GLAB {glab.name} created successfully.', 'success')
         return redirect(url_for('list_glabs'))
     
     return render_template('glabs/form.html', glab=None)
@@ -516,278 +634,429 @@ def new_glab():
 @app.route('/glabs/<int:glab_id>')
 @login_required
 def view_glab(glab_id):
-    """View GLAB details"""
     glab = GLAB.query.get_or_404(glab_id)
-    
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != glab_id:
+    if not current_user.is_gea() and current_user.glab_id != glab_id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     
-    projects = Project.query.filter_by(glab_id=glab_id).order_by(Project.updated_at.desc()).all()
-    clients = Client.query.filter_by(glab_id=glab_id).all()
+    projects = glab.projects.order_by(Project.created_at.desc()).all()
+    clients = glab.clients.all()
+    assessors = User.query.filter_by(glab_id=glab_id, role='glab_assessor').all()
     
-    return render_template('glabs/view.html', glab=glab, projects=projects, clients=clients)
+    return render_template('glabs/view.html', glab=glab, projects=projects, clients=clients, assessors=assessors)
 
 
 # =============================================================================
-# ROUTES - CLIENT MANAGEMENT
+# CLIENT MANAGEMENT (GEA and GLAB)
 # =============================================================================
 
 @app.route('/clients')
 @login_required
 def list_clients():
-    """List clients"""
-    if current_user.role == 'gea_admin':
-        clients = Client.query.all()
+    if current_user.is_gea():
+        clients = Client.query.order_by(Client.created_at.desc()).all()
     else:
-        clients = Client.query.filter_by(glab_id=current_user.glab_id).all()
+        clients = Client.query.filter_by(glab_id=current_user.glab_id).order_by(Client.created_at.desc()).all()
     
     return render_template('clients/list.html', clients=clients)
 
 
-@app.route('/clients/new', methods=['GET', 'POST'])
+@app.route('/clients/create', methods=['GET', 'POST'])
 @login_required
-def new_client():
-    """Create new client"""
+def create_client():
+    glabs = GLAB.query.filter_by(status='active').all() if current_user.is_gea() else None
+    
     if request.method == 'POST':
-        glab_id = current_user.glab_id if current_user.role != 'gea_admin' else request.form.get('glab_id')
+        glab_id = request.form.get('glab_id') if current_user.is_gea() else current_user.glab_id
         
         client = Client(
-            glab_id=glab_id,
             name=request.form.get('name'),
-            registered_address=request.form.get('registered_address'),
             country=request.form.get('country'),
+            registered_address=request.form.get('registered_address'),
             industry_sector=request.form.get('industry_sector'),
-            total_employees=request.form.get('total_employees', type=int),
-            number_of_sites=request.form.get('number_of_sites', type=int) or 1,
+            total_employees=request.form.get('total_employees') or None,
+            number_of_sites=request.form.get('number_of_sites') or 1,
             primary_contact_name=request.form.get('primary_contact_name'),
             primary_contact_email=request.form.get('primary_contact_email'),
-            primary_contact_phone=request.form.get('primary_contact_phone')
+            primary_contact_phone=request.form.get('primary_contact_phone'),
+            glab_id=glab_id,
+            created_by=current_user.id
         )
         db.session.add(client)
         db.session.commit()
         
-        flash(f'Client "{client.name}" created successfully.', 'success')
+        flash(f'Client {client.name} created successfully.', 'success')
         return redirect(url_for('list_clients'))
     
-    glabs = GLAB.query.all() if current_user.role == 'gea_admin' else None
     return render_template('clients/form.html', client=None, glabs=glabs)
 
 
 @app.route('/clients/<int:client_id>')
 @login_required
 def view_client(client_id):
-    """View client details"""
     client = Client.query.get_or_404(client_id)
-    
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != client.glab_id:
+    if not current_user.is_gea() and client.glab_id != current_user.glab_id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     
-    projects = Project.query.filter_by(client_id=client_id).all()
-    return render_template('clients/view.html', client=client, projects=projects)
+    projects = client.projects.all()
+    return render_template('clients/view.html', client=client, projects=projects, phases=PHASES)
 
 
 # =============================================================================
-# ROUTES - PROJECT MANAGEMENT
+# PROJECT MANAGEMENT
 # =============================================================================
 
 @app.route('/projects')
 @login_required
 def list_projects():
-    """List projects"""
-    phase_filter = request.args.get('phase')
-    status_filter = request.args.get('status')
+    if current_user.is_gea():
+        projects = Project.query.order_by(Project.created_at.desc()).all()
+    elif current_user.role == 'glab_assessor':
+        projects = current_user.assigned_projects
+    else:
+        projects = Project.query.filter_by(glab_id=current_user.glab_id).order_by(Project.created_at.desc()).all()
     
-    query = Project.query
-    
-    if current_user.role != 'gea_admin':
-        query = query.filter_by(glab_id=current_user.glab_id)
-    
-    if phase_filter:
-        query = query.filter_by(current_phase=phase_filter)
-    
-    if status_filter:
-        query = query.filter_by(gea_proposal_status=status_filter)
-    
-    projects = query.order_by(Project.updated_at.desc()).all()
-    
-    return render_template('projects/list.html', projects=projects)
+    return render_template('projects/list.html', projects=projects, phases=PHASES)
 
 
-@app.route('/projects/new', methods=['GET', 'POST'])
+@app.route('/projects/create', methods=['GET', 'POST'])
 @login_required
-def new_project():
-    """Create new project"""
+def create_project():
+    if current_user.role == 'glab_assessor':
+        flash('Assessors cannot create projects.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    glabs = GLAB.query.filter_by(status='active').all() if current_user.is_gea() else None
+    
+    if current_user.is_gea():
+        clients = Client.query.all()
+    else:
+        clients = Client.query.filter_by(glab_id=current_user.glab_id).all()
+    
     if request.method == 'POST':
-        glab_id = current_user.glab_id if current_user.role != 'gea_admin' else request.form.get('glab_id')
+        glab_id = request.form.get('glab_id') if current_user.is_gea() else current_user.glab_id
         glab = GLAB.query.get(glab_id)
         
-        # Generate reference number
-        ref_number = generate_reference_number(glab.license_number)
-        
-        # Calculate fees
-        assessment_days = request.form.get('assessment_days', type=int) or 0
-        day_rate = request.form.get('day_rate', type=float) or 0
-        multi_site_premium = request.form.get('multi_site_premium', type=float) or 0
-        other_fees = request.form.get('other_fees', type=float) or 0
-        
-        fees = calculate_fees(assessment_days, day_rate, multi_site_premium, other_fees)
-        
         project = Project(
-            reference_number=ref_number,
+            reference_number=generate_reference_number(glab),
             glab_id=glab_id,
-            client_id=request.form.get('client_id', type=int),
+            client_id=request.form.get('client_id'),
             assessment_type=request.form.get('assessment_type'),
-            assessment_days=assessment_days,
-            day_rate=day_rate,
-            multi_site_premium=multi_site_premium,
-            other_fees=other_fees,
-            total_assessment_fees=fees['total_assessment_fees'],
-            net_assessment_fees=fees['net_assessment_fees'],
-            gea_fee=fees['gea_fee'],
-            glab_revenue=fees['glab_revenue'],
-            travel_accommodation=request.form.get('travel_accommodation', type=float) or 0,
-            lead_assessor=request.form.get('lead_assessor'),
-            technical_specialist=request.form.get('technical_specialist'),
-            notes=request.form.get('notes')
+            total_assessment_fees=float(request.form.get('total_fees') or 0),
+            created_by=current_user.id
         )
         
-        # Parse dates
-        for date_field in ['proposed_start_date', 'document_review_date', 'onsite_assessment_start', 
-                          'onsite_assessment_end', 'draft_report_date', 'final_report_date']:
-            date_value = request.form.get(date_field)
-            if date_value:
-                setattr(project, date_field, datetime.strptime(date_value, '%Y-%m-%d'))
+        # Calculate GEA fee (15%)
+        project.gea_fee = project.total_assessment_fees * 0.15
+        project.glab_revenue = project.total_assessment_fees * 0.85
         
         db.session.add(project)
         db.session.commit()
         
-        # Create checklist for initial phase
-        create_checklist_for_project(project.id, 'proposal')
+        # Create default checklists
+        create_default_checklists(project)
         
-        # Log phase creation
-        log_phase_change(project.id, None, 'proposal', 'created', current_user.username)
+        # Log phase
+        log = PhaseLog(
+            project_id=project.id,
+            from_phase=None,
+            to_phase=1,
+            action='created',
+            performed_by=current_user.id
+        )
+        db.session.add(log)
+        db.session.commit()
         
-        flash(f'Project {ref_number} created successfully.', 'success')
+        flash(f'Project {project.reference_number} created successfully.', 'success')
         return redirect(url_for('view_project', project_id=project.id))
     
-    # Get clients based on role
-    if current_user.role == 'gea_admin':
-        clients = Client.query.all()
-        glabs = GLAB.query.all()
-    else:
-        clients = Client.query.filter_by(glab_id=current_user.glab_id).all()
-        glabs = None
-    
-    return render_template('projects/form.html', project=None, clients=clients, glabs=glabs)
+    return render_template('projects/form.html', glabs=glabs, clients=clients, project=None)
 
 
 @app.route('/projects/<int:project_id>')
 @login_required
 def view_project(project_id):
-    """View project details with phase workflow"""
     project = Project.query.get_or_404(project_id)
     
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != project.glab_id:
+    # Access control
+    if current_user.role == 'glab_assessor':
+        if project not in current_user.assigned_projects:
+            flash('Access denied. You are not assigned to this project.', 'error')
+            return redirect(url_for('dashboard'))
+    elif not current_user.is_gea() and project.glab_id != current_user.glab_id:
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Get checklist for current phase
+    current_phase = PHASES.get(project.current_phase, {})
     checklist = ChecklistItem.query.filter_by(
         project_id=project_id,
-        phase=project.current_phase
+        phase_number=project.current_phase
     ).order_by(ChecklistItem.order).all()
     
-    # Get all documents
-    documents = Document.query.filter_by(project_id=project_id).order_by(Document.uploaded_at.desc()).all()
+    documents = Document.query.filter_by(
+        project_id=project_id,
+        phase_number=project.current_phase
+    ).all()
     
-    # Get phase logs
+    # Get templates for current phase
+    templates = PhaseTemplate.query.filter_by(
+        phase_number=project.current_phase,
+        is_active=True
+    ).all()
+    
+    # Get chat messages
+    messages = ChatMessage.query.filter_by(project_id=project_id).order_by(ChatMessage.sent_at.desc()).limit(50).all()
+    
+    # Get assigned assessors
+    assessors = project.assessors
+    
+    # Get available assessors for assignment (GEA/GLAB admin only)
+    available_assessors = []
+    if current_user.is_gea() or current_user.role == 'glab_admin':
+        available_assessors = User.query.filter_by(
+            glab_id=project.glab_id,
+            role='glab_assessor',
+            is_active=True
+        ).all()
+    
     phase_logs = PhaseLog.query.filter_by(project_id=project_id).order_by(PhaseLog.performed_at.desc()).all()
     
-    # Define phase order and names
-    phases = [
-        ('proposal', 'Proposal & Pre-Approval'),
-        ('engagement', 'Engagement & Contract'),
-        ('assessment', 'Assessment Execution'),
-        ('reporting', 'Reporting & Review'),
-        ('certification', 'Certification Decision'),
-        ('post_certification', 'Post-Certification')
-    ]
-    
     return render_template('projects/view.html',
-                         project=project,
-                         checklist=checklist,
-                         documents=documents,
-                         phase_logs=phase_logs,
-                         phases=phases)
+        project=project,
+        current_phase=current_phase,
+        phase_number=project.current_phase,
+        checklist=checklist,
+        documents=documents,
+        templates=templates,
+        messages=messages,
+        assessors=assessors,
+        available_assessors=available_assessors,
+        phase_logs=phase_logs,
+        phases=PHASES
+    )
 
 
-@app.route('/projects/<int:project_id>/advance-phase', methods=['POST'])
+# =============================================================================
+# GEA REVIEW (Approve/Deny/Request Changes)
+# =============================================================================
+
+@app.route('/projects/<int:project_id>/review', methods=['POST'])
 @login_required
-def advance_phase(project_id):
-    """Advance project to next phase"""
+@gea_required
+def review_project(project_id):
     project = Project.query.get_or_404(project_id)
+    action = request.form.get('action')
+    notes = request.form.get('notes', '')
     
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != project.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    phase_order = ['proposal', 'engagement', 'assessment', 'reporting', 'certification', 'post_certification']
-    current_idx = phase_order.index(project.current_phase)
-    
-    # Check if all required checklist items are completed
-    incomplete = ChecklistItem.query.filter_by(
-        project_id=project_id,
-        phase=project.current_phase,
-        is_required=True,
-        is_completed=False
-    ).count()
-    
-    if incomplete > 0:
-        flash(f'{incomplete} required checklist items are incomplete.', 'error')
-        return redirect(url_for('view_project', project_id=project_id))
-    
-    # For proposal phase, check GEA approval
-    if project.current_phase == 'proposal' and project.gea_proposal_status != 'approved':
-        flash('Project must be approved by GEA before advancing.', 'error')
-        return redirect(url_for('view_project', project_id=project_id))
-    
-    if current_idx < len(phase_order) - 1:
-        old_phase = project.current_phase
-        new_phase = phase_order[current_idx + 1]
-        project.current_phase = new_phase
-        
-        # Create checklist for new phase
-        create_checklist_for_project(project_id, new_phase)
-        
-        # Log phase change
-        log_phase_change(project_id, old_phase, new_phase, 'advanced', current_user.username)
-        
+    if action in ['approved', 'changes_requested', 'denied']:
+        project.gea_status = action
+        project.gea_notes = notes
+        project.gea_reviewed_by = current_user.id
+        project.gea_reviewed_at = datetime.utcnow()
         db.session.commit()
-        flash(f'Project advanced to {new_phase.replace("_", " ").title()} phase.', 'success')
-    else:
-        flash('Project is already at the final phase.', 'info')
+        
+        flash(f'Project {action.replace("_", " ")}.', 'success')
     
     return redirect(url_for('view_project', project_id=project_id))
 
 
+@app.route('/reviews')
+@login_required
+@gea_required
+def pending_reviews():
+    projects = Project.query.filter_by(gea_status='pending').order_by(Project.created_at.desc()).all()
+    return render_template('reviews/list.html', projects=projects, phases=PHASES)
+
+
+# =============================================================================
+# DOCUMENT MANAGEMENT
+# =============================================================================
+
+@app.route('/projects/<int:project_id>/documents/upload', methods=['GET', 'POST'])
+@login_required
+def upload_document(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Access control
+    if current_user.role == 'glab_assessor' and project not in current_user.assigned_projects:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    phase = PHASES.get(project.current_phase, {})
+    document_slots = phase.get('documents', [])
+    
+    if request.method == 'POST':
+        document_key = request.form.get('document_key')
+        file = request.files.get('file')
+        
+        if not file or not allowed_file(file.filename):
+            flash('Invalid file type.', 'error')
+            return redirect(url_for('upload_document', project_id=project_id))
+        
+        # Find document type name
+        doc_name = next((d['name'] for d in document_slots if d['key'] == document_key), document_key)
+        
+        filename = secure_filename(file.filename)
+        stored_filename = f"{uuid.uuid4()}_{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
+        file.save(file_path)
+        
+        doc = Document(
+            project_id=project_id,
+            phase_number=project.current_phase,
+            document_key=document_key,
+            document_type=doc_name,
+            original_filename=filename,
+            stored_filename=stored_filename,
+            file_size=os.path.getsize(file_path),
+            uploaded_by=current_user.id
+        )
+        db.session.add(doc)
+        db.session.commit()
+        
+        flash(f'Document "{doc_name}" uploaded successfully.', 'success')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    # Get existing documents for this phase
+    existing_docs = {d.document_key: d for d in Document.query.filter_by(
+        project_id=project_id,
+        phase_number=project.current_phase
+    ).all()}
+    
+    # Get templates
+    templates = {t.document_key: t for t in PhaseTemplate.query.filter_by(
+        phase_number=project.current_phase,
+        is_active=True
+    ).all()}
+    
+    return render_template('documents/upload.html',
+        project=project,
+        phase=phase,
+        document_slots=document_slots,
+        existing_docs=existing_docs,
+        templates=templates
+    )
+
+
+@app.route('/documents/<int:document_id>/review', methods=['POST'])
+@login_required
+@gea_required
+def review_document(document_id):
+    doc = Document.query.get_or_404(document_id)
+    action = request.form.get('action')
+    notes = request.form.get('notes', '')
+    
+    if action in ['approved', 'changes_requested', 'denied']:
+        doc.status = action
+        doc.review_notes = notes
+        doc.reviewed_by = current_user.id
+        doc.reviewed_at = datetime.utcnow()
+        db.session.commit()
+        
+        flash(f'Document {action.replace("_", " ")}.', 'success')
+    
+    return redirect(url_for('view_project', project_id=doc.project_id))
+
+
+@app.route('/documents/<int:document_id>/download')
+@login_required
+def download_document(document_id):
+    doc = Document.query.get_or_404(document_id)
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        doc.stored_filename,
+        as_attachment=True,
+        download_name=doc.original_filename
+    )
+
+
+# =============================================================================
+# PHASE TEMPLATES (GEA Admin)
+# =============================================================================
+
+@app.route('/templates')
+@login_required
+@gea_admin_required
+def list_templates():
+    templates = PhaseTemplate.query.order_by(PhaseTemplate.phase_number, PhaseTemplate.document_key).all()
+    return render_template('templates/list.html', templates=templates, phases=PHASES)
+
+
+@app.route('/templates/upload', methods=['GET', 'POST'])
+@login_required
+@gea_admin_required
+def upload_template():
+    if request.method == 'POST':
+        phase_number = int(request.form.get('phase_number'))
+        document_key = request.form.get('document_key')
+        file = request.files.get('file')
+        
+        if not file or not allowed_file(file.filename):
+            flash('Invalid file type.', 'error')
+            return redirect(url_for('upload_template'))
+        
+        filename = secure_filename(file.filename)
+        stored_filename = f"template_{uuid.uuid4()}_{filename}"
+        file_path = os.path.join(app.config['TEMPLATES_FOLDER'], stored_filename)
+        file.save(file_path)
+        
+        # Deactivate old templates for same slot
+        PhaseTemplate.query.filter_by(
+            phase_number=phase_number,
+            document_key=document_key
+        ).update({'is_active': False})
+        
+        template = PhaseTemplate(
+            phase_number=phase_number,
+            document_key=document_key,
+            template_name=request.form.get('template_name') or filename,
+            original_filename=filename,
+            stored_filename=stored_filename,
+            uploaded_by=current_user.id
+        )
+        db.session.add(template)
+        db.session.commit()
+        
+        flash('Template uploaded successfully.', 'success')
+        return redirect(url_for('list_templates'))
+    
+    return render_template('templates/upload.html', phases=PHASES)
+
+
+@app.route('/templates/<int:template_id>/download')
+@login_required
+def download_template(template_id):
+    template = PhaseTemplate.query.get_or_404(template_id)
+    return send_from_directory(
+        app.config['TEMPLATES_FOLDER'],
+        template.stored_filename,
+        as_attachment=True,
+        download_name=template.original_filename
+    )
+
+
+# =============================================================================
+# CHECKLIST MANAGEMENT
+# =============================================================================
+
 @app.route('/projects/<int:project_id>/checklist/<int:item_id>/toggle', methods=['POST'])
 @login_required
 def toggle_checklist(project_id, item_id):
-    """Toggle checklist item completion"""
     item = ChecklistItem.query.get_or_404(item_id)
+    project = Project.query.get_or_404(project_id)
     
-    if item.project_id != project_id:
-        return jsonify({'error': 'Invalid item'}), 400
+    # Only GLAB users can mark items complete
+    if current_user.is_gea():
+        return jsonify({'success': False, 'error': 'Only GLAB users can mark checklist items.'})
+    
+    if project not in current_user.assigned_projects and current_user.role != 'glab_admin':
+        if current_user.glab_id != project.glab_id:
+            return jsonify({'success': False, 'error': 'Access denied.'})
     
     item.is_completed = not item.is_completed
     if item.is_completed:
-        item.completed_by = current_user.username
+        item.completed_by = current_user.id
         item.completed_at = datetime.utcnow()
     else:
         item.completed_by = None
@@ -798,362 +1067,174 @@ def toggle_checklist(project_id, item_id):
     return jsonify({
         'success': True,
         'is_completed': item.is_completed,
-        'completed_by': item.completed_by,
-        'completed_at': item.completed_at.isoformat() if item.completed_at else None
+        'completed_by': current_user.full_name or current_user.username if item.is_completed else None
     })
 
 
-# =============================================================================
-# ROUTES - DOCUMENT MANAGEMENT
-# =============================================================================
-
-@app.route('/projects/<int:project_id>/documents/upload', methods=['GET', 'POST'])
+@app.route('/projects/<int:project_id>/checklist/add', methods=['POST'])
 @login_required
-def upload_document(project_id):
-    """Upload document to project"""
+@gea_admin_required
+def add_checklist_item(project_id):
     project = Project.query.get_or_404(project_id)
+    item_text = request.form.get('item_text')
+    phase_number = int(request.form.get('phase_number', project.current_phase))
     
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != project.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
+    max_order = db.session.query(db.func.max(ChecklistItem.order)).filter_by(
+        project_id=project_id,
+        phase_number=phase_number
+    ).scalar() or 0
     
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('No file selected.', 'error')
-            return redirect(request.url)
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            flash('No file selected.', 'error')
-            return redirect(request.url)
-        
-        if file and allowed_file(file.filename):
-            # Secure filename and add unique identifier
-            original_filename = secure_filename(file.filename)
-            unique_filename = f"{uuid.uuid4().hex}_{original_filename}"
-            
-            # Create project-specific folder
-            project_folder = os.path.join(app.config['UPLOAD_FOLDER'], str(project_id))
-            os.makedirs(project_folder, exist_ok=True)
-            
-            file_path = os.path.join(project_folder, unique_filename)
-            file.save(file_path)
-            
-            # Get file size
-            file_size = os.path.getsize(file_path)
-            
-            # Create document record
-            document = Document(
-                project_id=project_id,
-                document_type=request.form.get('document_type'),
-                filename=unique_filename,
-                original_filename=original_filename,
-                file_path=file_path,
-                file_size=file_size,
-                uploaded_by=current_user.id,
-                description=request.form.get('description')
-            )
-            db.session.add(document)
-            db.session.commit()
-            
-            flash('Document uploaded successfully.', 'success')
-            return redirect(url_for('view_project', project_id=project_id))
-        else:
-            flash('Invalid file type.', 'error')
-    
-    document_types = [
-        ('proposal', 'Proposal'),
-        ('letter_of_engagement', 'Letter of Engagement'),
-        ('invoice', 'Invoice'),
-        ('payment_proof', 'Proof of Payment'),
-        ('assessment_report', 'Assessment Report'),
-        ('certification_certificate', 'Certification Certificate'),
-        ('other', 'Other')
-    ]
-    
-    return render_template('documents/upload.html', project=project, document_types=document_types)
-
-
-@app.route('/documents/<int:document_id>/download')
-@login_required
-def download_document(document_id):
-    """Download document"""
-    document = Document.query.get_or_404(document_id)
-    project = Project.query.get(document.project_id)
-    
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != project.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    directory = os.path.dirname(document.file_path)
-    return send_from_directory(directory, document.filename, 
-                              as_attachment=True, 
-                              download_name=document.original_filename)
-
-
-@app.route('/documents/<int:document_id>/review', methods=['POST'])
-@login_required
-@role_required('gea_admin')
-def review_document(document_id):
-    """Review document - approve, reject, or request changes"""
-    document = Document.query.get_or_404(document_id)
-    
-    action = request.form.get('action')
-    notes = request.form.get('notes')
-    
-    if action in ['approved', 'rejected', 'changes_requested']:
-        document.status = action
-        document.reviewed_by = current_user.username
-        document.review_date = datetime.utcnow()
-        document.review_notes = notes
-        
-        db.session.commit()
-        flash(f'Document {action.replace("_", " ")}.', 'success')
-    else:
-        flash('Invalid action.', 'error')
-    
-    return redirect(url_for('view_project', project_id=document.project_id))
-
-
-# =============================================================================
-# ROUTES - GEA REVIEW (Proposal Approval)
-# =============================================================================
-
-@app.route('/reviews')
-@login_required
-@role_required('gea_admin')
-def pending_reviews():
-    """List projects pending GEA review"""
-    projects = Project.query.filter_by(gea_proposal_status='pending').order_by(Project.created_at).all()
-    return render_template('reviews/list.html', projects=projects)
-
-
-@app.route('/projects/<int:project_id>/review', methods=['GET', 'POST'])
-@login_required
-@role_required('gea_admin')
-def review_project(project_id):
-    """Review project proposal"""
-    project = Project.query.get_or_404(project_id)
-    
-    if request.method == 'POST':
-        action = request.form.get('action')
-        notes = request.form.get('notes')
-        
-        if action in ['approved', 'adjustment_required', 'rejected']:
-            project.gea_proposal_status = action
-            project.gea_reviewer = current_user.username
-            project.gea_review_date = datetime.utcnow()
-            project.gea_review_notes = notes
-            
-            db.session.commit()
-            flash(f'Project proposal {action.replace("_", " ")}.', 'success')
-            return redirect(url_for('pending_reviews'))
-        else:
-            flash('Invalid action.', 'error')
-    
-    return render_template('reviews/review.html', project=project)
-
-
-# =============================================================================
-# ROUTES - FINANCIAL MANAGEMENT
-# =============================================================================
-
-@app.route('/financials')
-@login_required
-def financial_overview():
-    """Financial overview"""
-    if current_user.role == 'gea_admin':
-        # GEA sees all financial data
-        projects = Project.query.filter(Project.total_assessment_fees > 0).all()
-        
-        total_fees = sum(p.total_assessment_fees or 0 for p in projects)
-        total_gea_fees = sum(p.gea_fee or 0 for p in projects)
-        total_remitted = sum(p.gea_fee or 0 for p in projects if p.gea_fee_remitted)
-        total_outstanding = total_gea_fees - total_remitted
-        
-        return render_template('financials/overview_gea.html',
-                             projects=projects,
-                             total_fees=total_fees,
-                             total_gea_fees=total_gea_fees,
-                             total_remitted=total_remitted,
-                             total_outstanding=total_outstanding)
-    else:
-        # GLAB sees their financial data
-        glab = current_user.glab
-        projects = Project.query.filter_by(glab_id=glab.id).filter(Project.total_assessment_fees > 0).all()
-        
-        total_fees = sum(p.total_assessment_fees or 0 for p in projects)
-        total_glab_revenue = sum(p.glab_revenue or 0 for p in projects)
-        total_gea_fees = sum(p.gea_fee or 0 for p in projects)
-        total_remitted = sum(p.gea_fee or 0 for p in projects if p.gea_fee_remitted)
-        
-        return render_template('financials/overview_glab.html',
-                             glab=glab,
-                             projects=projects,
-                             total_fees=total_fees,
-                             total_glab_revenue=total_glab_revenue,
-                             total_gea_fees=total_gea_fees,
-                             total_remitted=total_remitted)
-
-
-@app.route('/projects/<int:project_id>/record-payment', methods=['POST'])
-@login_required
-def record_payment(project_id):
-    """Record payment received"""
-    project = Project.query.get_or_404(project_id)
-    
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != project.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    payment_type = request.form.get('payment_type')
-    amount = request.form.get('amount', type=float)
-    date_str = request.form.get('payment_date')
-    payment_date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.utcnow()
-    
-    if payment_type == 'initial':
-        project.initial_payment_received = True
-        project.initial_payment_date = payment_date
-        project.initial_payment_amount = amount
-    elif payment_type == 'final':
-        project.final_payment_received = True
-        project.final_payment_date = payment_date
-        project.final_payment_amount = amount
-    
-    db.session.commit()
-    flash('Payment recorded successfully.', 'success')
-    
-    return redirect(url_for('view_project', project_id=project_id))
-
-
-@app.route('/projects/<int:project_id>/record-remittance', methods=['POST'])
-@login_required
-def record_remittance(project_id):
-    """Record GEA fee remittance"""
-    project = Project.query.get_or_404(project_id)
-    
-    # Check access
-    if current_user.role != 'gea_admin' and current_user.glab_id != project.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    date_str = request.form.get('remittance_date')
-    remittance_date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.utcnow()
-    
-    project.gea_fee_remitted = True
-    project.gea_fee_remittance_date = remittance_date
-    
-    db.session.commit()
-    flash('GEA fee remittance recorded.', 'success')
-    
-    return redirect(url_for('view_project', project_id=project_id))
-
-
-# =============================================================================
-# ROUTES - REPORTS
-# =============================================================================
-
-@app.route('/reports/monthly', methods=['GET', 'POST'])
-@login_required
-def monthly_report():
-    """Monthly financial report"""
-    if current_user.role == 'gea_admin':
-        glabs = GLAB.query.all()
-        selected_glab_id = request.args.get('glab_id', type=int)
-    else:
-        glabs = None
-        selected_glab_id = current_user.glab_id
-    
-    period = request.args.get('period', datetime.now().strftime('%Y-%m'))
-    year, month = map(int, period.split('-'))
-    
-    start_date = datetime(year, month, 1)
-    if month == 12:
-        end_date = datetime(year + 1, 1, 1)
-    else:
-        end_date = datetime(year, month + 1, 1)
-    
-    # Build query
-    query = Project.query.filter(
-        Project.created_at >= start_date,
-        Project.created_at < end_date
+    item = ChecklistItem(
+        project_id=project_id,
+        phase_number=phase_number,
+        item_text=item_text,
+        is_required=True,
+        is_custom=True,
+        order=max_order + 1
     )
+    db.session.add(item)
+    db.session.commit()
     
-    if selected_glab_id:
-        query = query.filter_by(glab_id=selected_glab_id)
-    
-    projects = query.all()
-    
-    # Calculate summary
-    new_engagements = len([p for p in projects if p.created_at >= start_date])
-    total_invoiced = sum(p.total_assessment_fees or 0 for p in projects)
-    total_gea_fees = sum(p.gea_fee or 0 for p in projects)
-    
-    return render_template('reports/monthly.html',
-                         glabs=glabs,
-                         selected_glab_id=selected_glab_id,
-                         period=period,
-                         projects=projects,
-                         new_engagements=new_engagements,
-                         total_invoiced=total_invoiced,
-                         total_gea_fees=total_gea_fees)
+    flash('Checklist item added.', 'success')
+    return redirect(url_for('view_project', project_id=project_id))
 
 
 # =============================================================================
-# API ENDPOINTS
+# ASSESSOR MANAGEMENT
 # =============================================================================
 
-@app.route('/api/projects/<int:project_id>/fees', methods=['POST'])
+@app.route('/projects/<int:project_id>/assessors/assign', methods=['POST'])
 @login_required
-def calculate_project_fees(project_id):
-    """API to recalculate project fees"""
+def assign_assessor(project_id):
     project = Project.query.get_or_404(project_id)
     
-    data = request.get_json()
+    if not current_user.is_gea() and current_user.role != 'glab_admin':
+        flash('Access denied.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
     
-    assessment_days = data.get('assessment_days', project.assessment_days or 0)
-    day_rate = data.get('day_rate', project.day_rate or 0)
-    multi_site_premium = data.get('multi_site_premium', project.multi_site_premium or 0)
-    other_fees = data.get('other_fees', project.other_fees or 0)
+    assessor_id = request.form.get('assessor_id')
+    assessor = User.query.get_or_404(assessor_id)
     
-    fees = calculate_fees(assessment_days, day_rate, multi_site_premium, other_fees)
+    if assessor not in project.assessors:
+        project.assessors.append(assessor)
+        db.session.commit()
+        flash(f'Assessor {assessor.full_name or assessor.username} assigned.', 'success')
     
-    return jsonify(fees)
+    return redirect(url_for('view_project', project_id=project_id))
 
 
-@app.route('/api/dashboard/stats')
+@app.route('/projects/<int:project_id>/assessors/<int:user_id>/remove', methods=['POST'])
 @login_required
-def dashboard_stats():
-    """API for dashboard statistics"""
-    if current_user.role == 'gea_admin':
-        total_glabs = GLAB.query.count()
-        total_projects = Project.query.count()
-        pending_reviews = Project.query.filter_by(gea_proposal_status='pending').count()
-        total_fees = db.session.query(db.func.sum(Project.gea_fee)).scalar() or 0
+def remove_assessor(project_id, user_id):
+    project = Project.query.get_or_404(project_id)
+    
+    if not current_user.is_gea() and current_user.role != 'glab_admin':
+        flash('Access denied.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    assessor = User.query.get_or_404(user_id)
+    
+    if assessor in project.assessors:
+        project.assessors.remove(assessor)
+        db.session.commit()
+        flash(f'Assessor removed.', 'success')
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+# =============================================================================
+# CHAT / MESSAGING
+# =============================================================================
+
+@app.route('/projects/<int:project_id>/chat', methods=['GET', 'POST'])
+@login_required
+def project_chat(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    # Access control
+    if current_user.role == 'glab_assessor' and project not in current_user.assigned_projects:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    elif not current_user.is_gea() and current_user.glab_id != project.glab_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        message_text = request.form.get('message')
+        if message_text:
+            msg = ChatMessage(
+                project_id=project_id,
+                sender_id=current_user.id,
+                message=message_text
+            )
+            db.session.add(msg)
+            db.session.commit()
         
-        return jsonify({
-            'total_glabs': total_glabs,
-            'total_projects': total_projects,
-            'pending_reviews': pending_reviews,
-            'total_fees': total_fees
-        })
-    else:
-        glab_id = current_user.glab_id
-        total_clients = Client.query.filter_by(glab_id=glab_id).count()
-        total_projects = Project.query.filter_by(glab_id=glab_id).count()
-        active_projects = Project.query.filter_by(glab_id=glab_id).filter(
-            Project.current_phase != 'post_certification'
-        ).count()
-        
-        return jsonify({
-            'total_clients': total_clients,
-            'total_projects': total_projects,
-            'active_projects': active_projects
-        })
+        return redirect(url_for('project_chat', project_id=project_id))
+    
+    # Mark messages as read
+    ChatMessage.query.filter(
+        ChatMessage.project_id == project_id,
+        ChatMessage.sender_id != current_user.id,
+        ChatMessage.is_read == False
+    ).update({'is_read': True})
+    db.session.commit()
+    
+    messages = ChatMessage.query.filter_by(project_id=project_id).order_by(ChatMessage.sent_at.asc()).all()
+    
+    return render_template('chat/project.html', project=project, messages=messages, phases=PHASES)
+
+
+@app.route('/api/projects/<int:project_id>/messages')
+@login_required
+def get_messages(project_id):
+    """API endpoint for live chat polling"""
+    project = Project.query.get_or_404(project_id)
+    
+    messages = ChatMessage.query.filter_by(project_id=project_id).order_by(ChatMessage.sent_at.asc()).all()
+    
+    return jsonify([{
+        'id': m.id,
+        'sender': m.sender.full_name or m.sender.username,
+        'sender_role': m.sender.role,
+        'message': m.message,
+        'sent_at': m.sent_at.strftime('%Y-%m-%d %H:%M'),
+        'is_mine': m.sender_id == current_user.id
+    } for m in messages])
+
+
+# =============================================================================
+# PHASE ADVANCEMENT
+# =============================================================================
+
+@app.route('/projects/<int:project_id>/advance', methods=['POST'])
+@login_required
+def advance_phase(project_id):
+    project = Project.query.get_or_404(project_id)
+    
+    if not current_user.is_gea() and current_user.glab_id != project.glab_id:
+        flash('Access denied.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    if project.current_phase >= 8:
+        flash('Project is already in the final phase.', 'warning')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    old_phase = project.current_phase
+    project.current_phase += 1
+    
+    log = PhaseLog(
+        project_id=project_id,
+        from_phase=old_phase,
+        to_phase=project.current_phase,
+        action='advanced',
+        performed_by=current_user.id
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f'Project advanced to Phase {project.current_phase}: {PHASES[project.current_phase]["name"]}', 'success')
+    return redirect(url_for('view_project', project_id=project_id))
 
 
 # =============================================================================
@@ -1176,58 +1257,29 @@ def internal_error(error):
 # =============================================================================
 
 def init_db():
-    """Initialize database with default data"""
+    """Initialize database with default admin user"""
     db.create_all()
     
-    # Check if admin user exists
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        # Create default GEA admin
+    # Create default GEA admin if not exists
+    if not User.query.filter_by(username='admin').first():
         admin = User(
             username='admin',
             email='admin@gea.org',
+            full_name='GEA Administrator',
             role='gea_admin'
         )
-        admin.set_password('admin123')  # Change this in production!
+        admin.set_password('admin123')
         db.session.add(admin)
-        
-        # Create a sample GLAB
-        sample_glab = GLAB(
-            name='Sample GLAB - Middle East',
-            license_number='GLAB-ME001',
-            country='United Arab Emirates',
-            address='Dubai, UAE',
-            contact_email='contact@sampleglab.com',
-            contact_phone='+971-4-123-4567'
-        )
-        db.session.add(sample_glab)
         db.session.commit()
-        
-        # Create GLAB admin user
-        glab_admin = User(
-            username='glabadmin',
-            email='admin@sampleglab.com',
-            role='glab_admin',
-            glab_id=sample_glab.id
-        )
-        glab_admin.set_password('glab123')  # Change this in production!
-        db.session.add(glab_admin)
-        
-        db.session.commit()
-        print("Database initialized with default users.")
+        print("Database initialized.")
         print("GEA Admin: username='admin', password='admin123'")
-        print("GLAB Admin: username='glabadmin', password='glab123'")
 
 
-# =============================================================================
-# MAIN
-# =============================================================================
-
-# Initialize database on startup (for Railway/Gunicorn)
+# Initialize database on startup
 with app.app_context():
     init_db()
 
+
 if __name__ == '__main__':
-    # Run the app locally
     port = int(os.environ.get('PORT', 5001))
     app.run(debug=True, host='0.0.0.0', port=port)

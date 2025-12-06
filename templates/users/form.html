@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account - GEA Portal{% endblock %}
+{% block page_header %}Create Account{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Create New User Account</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('create_user') }}">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                            <input type="text" name="full_name" class="form-control" required placeholder="John Smith">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Username <span class="text-danger">*</span></label>
+                            <input type="text" name="username" class="form-control" required placeholder="jsmith">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" required placeholder="email@example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Password <span class="text-danger">*</span></label>
+                            <input type="password" name="password" class="form-control" required minlength="6">
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Role <span class="text-danger">*</span></label>
+                            <select name="role" id="roleSelect" class="form-select" required onchange="toggleGlabField()">
+                                <option value="">Select role...</option>
+                                <option value="gea_admin">GEA Admin</option>
+                                <option value="gea_staff">GEA Staff</option>
+                                <option value="glab_admin">GLAB Admin</option>
+                                <option value="glab_assessor">GLAB Assessor</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="glabField" style="display:none;">
+                            <label class="form-label">Assign to GLAB <span class="text-danger">*</span></label>
+                            <select name="glab_id" id="glabSelect" class="form-select">
+                                <option value="">Select GLAB...</option>
+                                {% for glab in glabs %}
+                                <option value="{{ glab.id }}">{{ glab.name }} ({{ glab.license_number }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle me-2"></i>Role Descriptions</h6>
+                        <ul class="mb-0 small">
+                            <li><strong>GEA Admin:</strong> Full access - can create accounts, manage GLABs, approve/deny documents</li>
+                            <li><strong>GEA Staff:</strong> Can review documents and communicate with GLABs</li>
+                            <li><strong>GLAB Admin:</strong> Manages their GLAB's clients, projects, and assessors</li>
+                            <li><strong>GLAB Assessor:</strong> Can only view assigned projects and upload documents</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-check-lg me-2"></i>Create Account
+                        </button>
+                        <a href="{{ url_for('list_users') }}" class="btn btn-light">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleGlabField() {
+    const role = document.getElementById('roleSelect').value;
+    const glabField = document.getElementById('glabField');
+    const glabSelect = document.getElementById('glabSelect');
+    
+    if (role === 'glab_admin' || role === 'glab_assessor') {
+        glabField.style.display = 'block';
+        glabSelect.required = true;
+    } else {
+        glabField.style.display = 'none';
+        glabSelect.required = false;
+        glabSelect.value = '';
+    }
+}
+</script>
+{% endblock %}
