@@ -470,6 +470,13 @@
                 <span>Pending Reviews</span>
             </a>
             {% endif %}
+            
+            <div class="nav-section">Communication</div>
+            
+            <a href="{{ url_for('list_announcements') }}" class="nav-link {% if 'announcement' in request.endpoint %}active{% endif %}">
+                <i class="bi bi-megaphone"></i>
+                <span>Announcements</span>
+            </a>
         </div>
     </nav>
     

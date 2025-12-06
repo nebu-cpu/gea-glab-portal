@@ -373,6 +373,23 @@ class ChatMessage(db.Model):
     sender = db.relationship('User', foreign_keys=[sender_id])
 
 
+class Announcement(db.Model):
+    """Global announcements from GEA to all GLABs"""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    priority = db.Column(db.String(20), default='normal')  # low, normal, high, urgent
+    target_glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=True)  # None = all GLABs
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    author = db.relationship('User', foreign_keys=[created_by])
+    target_glab = db.relationship('GLAB', foreign_keys=[target_glab_id])
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -1248,6 +1265,65 @@ def advance_phase(project_id):
     
     flash(f'Project advanced to Phase {project.current_phase}: {PHASES[project.current_phase]["name"]}', 'success')
     return redirect(url_for('view_project', project_id=project_id))
+
+
+# =============================================================================
+# ANNOUNCEMENTS (GEA to GLABs)
+# =============================================================================
+
+@app.route('/announcements')
+@login_required
+def list_announcements():
+    if current_user.is_gea():
+        announcements = Announcement.query.order_by(Announcement.created_at.desc()).all()
+    else:
+        # Show announcements for this GLAB or all GLABs
+        announcements = Announcement.query.filter(
+            db.or_(
+                Announcement.target_glab_id == None,
+                Announcement.target_glab_id == current_user.glab_id
+            ),
+            Announcement.is_active == True
+        ).order_by(Announcement.created_at.desc()).all()
+    
+    glabs = GLAB.query.all() if current_user.is_gea() else None
+    return render_template('announcements/list.html', announcements=announcements, glabs=glabs)
+
+
+@app.route('/announcements/create', methods=['GET', 'POST'])
+@login_required
+@gea_required
+def create_announcement():
+    glabs = GLAB.query.filter_by(status='active').all()
+    
+    if request.method == 'POST':
+        target_glab_id = request.form.get('target_glab_id') or None
+        
+        announcement = Announcement(
+            title=request.form.get('title'),
+            message=request.form.get('message'),
+            priority=request.form.get('priority', 'normal'),
+            target_glab_id=int(target_glab_id) if target_glab_id else None,
+            created_by=current_user.id
+        )
+        db.session.add(announcement)
+        db.session.commit()
+        
+        flash('Announcement sent successfully.', 'success')
+        return redirect(url_for('list_announcements'))
+    
+    return render_template('announcements/form.html', glabs=glabs)
+
+
+@app.route('/announcements/<int:announcement_id>/delete', methods=['POST'])
+@login_required
+@gea_admin_required
+def delete_announcement(announcement_id):
+    announcement = Announcement.query.get_or_404(announcement_id)
+    announcement.is_active = False
+    db.session.commit()
+    flash('Announcement deleted.', 'success')
+    return redirect(url_for('list_announcements'))
 
 
 # =============================================================================

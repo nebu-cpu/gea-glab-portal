@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}New Announcement - GEA Portal{% endblock %}
+{% block page_header %}New Announcement{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-megaphone me-2"></i>Send Announcement to GLABs</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" required placeholder="Announcement title...">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Message <span class="text-danger">*</span></label>
+                        <textarea name="message" class="form-control" rows="5" required placeholder="Write your message..."></textarea>
+                    </div>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <select name="priority" class="form-select">
+                                <option value="low">Low</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Target</label>
+                            <select name="target_glab_id" class="form-select">
+                                <option value="">All GLABs</option>
+                                {% for glab in glabs %}
+                                <option value="{{ glab.id }}">{{ glab.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-send me-2"></i>Send Announcement
+                        </button>
+                        <a href="{{ url_for('list_announcements') }}" class="btn btn-light">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
