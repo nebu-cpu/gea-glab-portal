@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
 {% block title %}GLAB Dashboard - GEA Portal{% endblock %}
-{% block page_header %}{{ glab.name if glab else 'GLAB Dashboard' }}{% endblock %}
+{% block page_header %}{{ glab.name }}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
-        <h4 class="fw-bold mb-0">Welcome back, {{ current_user.full_name or current_user.username }}</h4>
-        <p class="text-muted">{{ glab.name if glab else '' }} · License: {{ glab.license_number if glab else 'N/A' }}</p>
+        <h4 class="fw-bold mb-0">Welcome back, {{ current_user.username }}</h4>
+        <p class="text-muted">{{ glab.name }} · License: {{ glab.license_number }}</p>
     </div>
 </div>
 
@@ -48,7 +48,7 @@
                     <i class="bi bi-play-circle"></i>
                 </div>
                 <div>
-                    <div class="stat-value">{{ projects|length - phase_counts.post_certification }}</div>
+                    <div class="stat-value">{{ phase_counts.proposal + phase_counts.engagement + phase_counts.assessment + phase_counts.reporting + phase_counts.certification }}</div>
                     <div class="stat-label">Active Projects</div>
                 </div>
             </div>
@@ -59,11 +59,11 @@
         <div class="stat-card">
             <div class="d-flex align-items-center gap-3">
                 <div class="stat-icon" style="background: #e0e7ff; color: #4338ca;">
-                    <i class="bi bi-chat-dots"></i>
+                    <i class="bi bi-check-circle"></i>
                 </div>
                 <div>
-                    <div class="stat-value">{{ unread_messages }}</div>
-                    <div class="stat-label">Unread Messages</div>
+                    <div class="stat-value">{{ phase_counts.post_certification }}</div>
+                    <div class="stat-label">Certified</div>
                 </div>
             </div>
         </div>
@@ -75,20 +75,19 @@
     <div class="card-header">Project Phase Distribution</div>
     <div class="card-body">
         <div class="row g-3">
-            {% set phase_display = [
-                ('enrollment', 'Enrollment', 'bi-file-text', '#3b82f6'),
-                ('safeguards', 'Safeguards', 'bi-shield-check', '#8b5cf6'),
-                ('engagement', 'Engagement', 'bi-handshake', '#f59e0b'),
-                ('assessment', 'Assessment', 'bi-clipboard-data', '#06b6d4'),
-                ('reporting', 'Reporting', 'bi-file-earmark-text', '#ec4899'),
+            {% set phases = [
+                ('proposal', 'Proposal', 'bi-file-text', '#3b82f6'),
+                ('engagement', 'Engagement', 'bi-handshake', '#8b5cf6'),
+                ('assessment', 'Assessment', 'bi-clipboard-data', '#f59e0b'),
+                ('reporting', 'Reporting', 'bi-file-earmark-text', '#06b6d4'),
                 ('certification', 'Certification', 'bi-award', '#10b981'),
                 ('post_certification', 'Post-Cert', 'bi-check2-circle', '#6b7280')
             ] %}
-            {% for phase_key, phase_name, icon, color in phase_display %}
-            <div class="col-6 col-md-3 col-lg">
+            {% for phase_key, phase_name, icon, color in phases %}
+            <div class="col-md-4 col-lg-2">
                 <div class="text-center p-3 rounded" style="background: {{ color }}15; border: 1px solid {{ color }}40;">
-                    <i class="bi {{ icon }} fs-4" style="color: {{ color }};"></i>
-                    <div class="fs-5 fw-bold mt-2" style="color: {{ color }};">{{ phase_counts.get(phase_key, 0) }}</div>
+                    <i class="bi {{ icon }} fs-3" style="color: {{ color }};"></i>
+                    <div class="fs-4 fw-bold mt-2" style="color: {{ color }};">{{ phase_counts[phase_key] }}</div>
                     <div class="small text-muted">{{ phase_name }}</div>
                 </div>
             </div>
@@ -108,58 +107,57 @@
                 </a>
             </div>
             <div class="card-body p-0">
-                {% if projects %}
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
                                 <th class="ps-3">Reference</th>
                                 <th>Client</th>
+                                <th>Type</th>
                                 <th>Phase</th>
-                                <th>GEA Status</th>
-                                <th class="text-end pe-3">Chat</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for project in projects[:10] %}
-                            <tr>
+                            <tr onclick="window.location='{{ url_for('view_project', project_id=project.id) }}'" style="cursor: pointer;">
                                 <td class="ps-3">
-                                    <a href="{{ url_for('view_project', project_id=project.id) }}" class="fw-medium text-decoration-none">
-                                        {{ project.reference_number }}
-                                    </a>
+                                    <span class="fw-medium">{{ project.reference_number }}</span>
                                 </td>
                                 <td>{{ project.client.name[:25] }}{% if project.client.name|length > 25 %}...{% endif %}</td>
                                 <td>
-                                    <span class="badge bg-primary">Phase {{ project.current_phase }}</span>
-                                </td>
-                                <td>
-                                    <span class="status-badge status-{{ project.gea_status }}">
-                                        {{ project.gea_status.replace('_', ' ').title() }}
+                                    <span class="badge bg-light text-dark">
+                                        {{ project.assessment_type.title() }}
                                     </span>
                                 </td>
-                                <td class="text-end pe-3">
-                                    <a href="{{ url_for('project_chat', project_id=project.id) }}" class="btn btn-sm btn-light">
-                                        <i class="bi bi-chat-dots"></i>
-                                    </a>
+                                <td>
+                                    <span class="badge" style="background: #f1f5f9; color: #475569;">
+                                        {{ project.current_phase.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-{{ project.gea_proposal_status }}">
+                                        {{ project.gea_proposal_status.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    No projects yet. <a href="{{ url_for('create_project') }}">Create your first project</a>
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="bi bi-folder-x fs-1 text-muted"></i>
-                    <p class="mt-2 mb-0">No projects yet. <a href="{{ url_for('create_project') }}">Create your first project</a></p>
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
     
-    <!-- Clients & Quick Actions -->
+    <!-- Clients -->
     <div class="col-lg-4">
-        <div class="card mb-4">
+        <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>Your Clients</span>
                 <a href="{{ url_for('create_client') }}" class="btn btn-sm btn-gea">
@@ -167,38 +165,57 @@
                 </a>
             </div>
             <div class="card-body">
-                {% if clients %}
-                {% for client in clients[:5] %}
-                <div class="d-flex align-items-center justify-content-between py-2 {% if not loop.last %}border-bottom{% endif %}">
+                {% for client in clients[:8] %}
+                <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
                     <div>
-                        <div class="fw-medium">{{ client.name[:20] }}{% if client.name|length > 20 %}...{% endif %}</div>
-                        <small class="text-muted">{{ client.country }}</small>
+                        <div class="fw-medium">{{ client.name }}</div>
+                        <small class="text-muted">{{ client.country }} · {{ client.total_employees or 'N/A' }} employees</small>
                     </div>
                     <a href="{{ url_for('view_client', client_id=client.id) }}" class="btn btn-sm btn-light">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </div>
-                {% endfor %}
                 {% else %}
-                <p class="text-muted mb-0">No clients yet. <a href="{{ url_for('create_client') }}">Add your first client</a></p>
-                {% endif %}
+                <p class="text-muted text-center py-4">
+                    No clients yet. <a href="{{ url_for('create_client') }}">Add your first client</a>
+                </p>
+                {% endfor %}
             </div>
         </div>
-        
-        <!-- Quick Actions -->
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">Quick Actions</div>
             <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('create_client') }}" class="btn btn-gea-outline">
-                        <i class="bi bi-person-plus me-2"></i>Add New Client
-                    </a>
-                    <a href="{{ url_for('create_project') }}" class="btn btn-gea-outline">
-                        <i class="bi bi-folder-plus me-2"></i>Start New Project
-                    </a>
-                    <a href="{{ url_for('list_projects') }}" class="btn btn-gea-outline">
-                        <i class="bi bi-folder me-2"></i>View All Projects
-                    </a>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <a href="{{ url_for('create_client') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-person-plus d-block fs-4 mb-2"></i>
+                            Add New Client
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('create_project') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-folder-plus d-block fs-4 mb-2"></i>
+                            New Project
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('financial_overview') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-cash-stack d-block fs-4 mb-2"></i>
+                            Financial Summary
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('monthly_report') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-file-earmark-bar-graph d-block fs-4 mb-2"></i>
+                            Monthly Report
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

@@ -507,11 +507,24 @@ def dashboard():
             ChatMessage.sender_id != current_user.id
         ).count() if glab else 0
         
+        # Calculate phase counts
+        phase_counts = {
+            'enrollment': len([p for p in projects if p.current_phase == 1]),
+            'safeguards': len([p for p in projects if p.current_phase == 2]),
+            'preliminary': len([p for p in projects if p.current_phase == 3]),
+            'engagement': len([p for p in projects if p.current_phase == 4]),
+            'assessment': len([p for p in projects if p.current_phase == 5]),
+            'reporting': len([p for p in projects if p.current_phase == 6]),
+            'certification': len([p for p in projects if p.current_phase == 7]),
+            'post_certification': len([p for p in projects if p.current_phase == 8]),
+        }
+        
         return render_template('dashboard_glab.html',
             glab=glab,
             clients=clients,
             projects=projects,
             unread_messages=unread_messages,
+            phase_counts=phase_counts,
             phases=PHASES
         )
     
