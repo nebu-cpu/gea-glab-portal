@@ -9,7 +9,7 @@
         <h4 class="fw-bold mb-1">{{ client.name }}</h4>
         <p class="text-muted mb-0">{{ client.country }} · {{ client.industry_sector or 'Industry not specified' }}</p>
     </div>
-    <a href="{{ url_for('new_project') }}?client_id={{ client.id }}" class="btn btn-gea">
+    <a href="{{ url_for('create_project') }}?client_id={{ client.id }}" class="btn btn-gea">
         <i class="bi bi-plus-lg me-2"></i>New Project
     </a>
 </div>
@@ -118,7 +118,7 @@
                             <tr>
                                 <td colspan="5" class="text-center py-5">
                                     <p class="text-muted mb-3">No projects for this client yet</p>
-                                    <a href="{{ url_for('new_project') }}" class="btn btn-gea btn-sm">
+                                    <a href="{{ url_for('create_project') }}" class="btn btn-gea btn-sm">
                                         <i class="bi bi-plus me-1"></i>Create Project
                                     </a>
                                 </td>

@@ -11,7 +11,7 @@
                 <h5 class="mb-0">{% if client %}Edit Client{% else %}Add New Client{% endif %}</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('new_client') }}">
+                <form method="POST" action="{{ url_for('create_client') }}">
                     
                     {% if glabs %}
                     <!-- GLAB Selection (GEA Admin only) -->

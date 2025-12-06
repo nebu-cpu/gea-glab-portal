@@ -11,7 +11,7 @@
                 <h5 class="mb-0">{% if project %}Edit Project{% else %}Create New Assessment Project{% endif %}</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('new_project') if not project else url_for('view_project', project_id=project.id) }}">
+                <form method="POST" action="{{ url_for('create_project') if not project else url_for('view_project', project_id=project.id) }}">
                     
                     {% if current_user.role == 'gea_admin' and glabs %}
                     <!-- GLAB Selection (GEA Admin only) -->
@@ -45,7 +45,7 @@
                                     {% endfor %}
                                 </select>
                                 <small class="text-muted">
-                                    Don't see your client? <a href="{{ url_for('new_client') }}">Add new client</a>
+                                    Don't see your client? <a href="{{ url_for('create_client') }}">Add new client</a>
                                 </small>
                             </div>
                             <div class="col-md-6">
