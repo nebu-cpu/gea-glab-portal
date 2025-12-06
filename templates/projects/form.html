@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}{% if project %}Edit Project{% else %}New Project{% endif %} - GEA Portal{% endblock %}
+{% block page_header %}{% if project %}Edit Project{% else %}New Project{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% if project %}Edit Project{% else %}Create New Assessment Project{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('new_project') if not project else url_for('view_project', project_id=project.id) }}">
+                    
+                    {% if current_user.role == 'gea_admin' and glabs %}
+                    <!-- GLAB Selection (GEA Admin only) -->
+                    <div class="mb-4">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">GLAB Assignment</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Select GLAB <span class="text-danger">*</span></label>
+                                <select name="glab_id" class="form-select" required id="glab_select">
+                                    <option value="">Choose a GLAB...</option>
+                                    {% for glab in glabs %}
+                                    <option value="{{ glab.id }}">{{ glab.name }} ({{ glab.license_number }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="my-4">
+                    {% endif %}
+                    
+                    <!-- Client & Assessment Type -->
+                    <div class="mb-4">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Client Information</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Client <span class="text-danger">*</span></label>
+                                <select name="client_id" class="form-select" required>
+                                    <option value="">Select a client...</option>
+                                    {% for client in clients %}
+                                    <option value="{{ client.id }}">{{ client.name }} ({{ client.country }})</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">
+                                    Don't see your client? <a href="{{ url_for('new_client') }}">Add new client</a>
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Assessment Type <span class="text-danger">*</span></label>
+                                <select name="assessment_type" class="form-select" required>
+                                    <option value="">Select type...</option>
+                                    <option value="initial">Initial Certification</option>
+                                    <option value="recertification">Re-certification</option>
+                                    <option value="surveillance">Surveillance Assessment</option>
+                                    <option value="endorsement">Endorsement Assessment</option>
+                                    <option value="followup">Follow-up Assessment</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Fee Calculation -->
+                    <div class="mb-4">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Fee Proposal</h6>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>GEA Fee Structure:</strong> 15% of Net Assessment Fees goes to GEA. GLAB retains 85%.
+                        </div>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Assessment Days <span class="text-danger">*</span></label>
+                                <input type="number" name="assessment_days" class="form-control" id="assessment_days" min="1" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Day Rate (USD) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="day_rate" class="form-control" id="day_rate" step="0.01" min="0" required>
+                                </div>
+                                <small class="text-muted">Range: $1,200 - $2,500/day</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Multi-Site Premium</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="multi_site_premium" class="form-control" id="multi_site_premium" step="0.01" min="0" value="0">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Other Fees</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="other_fees" class="form-control" id="other_fees" step="0.01" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mt-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Travel & Accommodation (Est.)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="travel_accommodation" class="form-control" step="0.01" min="0" value="0">
+                                </div>
+                                <small class="text-muted">Not subject to 15% GEA fee</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Fee Summary -->
+                        <div class="bg-light rounded p-3 mt-4">
+                            <h6 class="mb-3">Fee Calculation Preview</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="text-muted small">Assessment Fees</div>
+                                    <div class="fs-5 fw-bold" id="total_fees">$0.00</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-muted small">GEA Fee (15%)</div>
+                                    <div class="fs-5 fw-bold text-danger" id="gea_fee">$0.00</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-muted small">GLAB Revenue (85%)</div>
+                                    <div class="fs-5 fw-bold text-success" id="glab_revenue">$0.00</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Timeline -->
+                    <div class="mb-4">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Proposed Timeline</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Proposed Start Date</label>
+                                <input type="date" name="proposed_start_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Document Review Date</label>
+                                <input type="date" name="document_review_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">On-site Start Date</label>
+                                <input type="date" name="onsite_assessment_start" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">On-site End Date</label>
+                                <input type="date" name="onsite_assessment_end" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Draft Report Date</label>
+                                <input type="date" name="draft_report_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Final Report Date</label>
+                                <input type="date" name="final_report_date" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Assessment Team -->
+                    <div class="mb-4">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Assessment Team</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Lead Assessor</label>
+                                <input type="text" name="lead_assessor" class="form-control" placeholder="Name of lead assessor">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Technical Specialist</label>
+                                <input type="text" name="technical_specialist" class="form-control" placeholder="Name of technical specialist">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Notes -->
+                    <div class="mb-4">
+                        <label class="form-label">Additional Notes</label>
+                        <textarea name="notes" class="form-control" rows="3" placeholder="Any additional notes or comments..."></textarea>
+                    </div>
+                    
+                    <!-- Submit -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-check-lg me-2"></i>Create Project
+                        </button>
+                        <a href="{{ url_for('list_projects') }}" class="btn btn-light">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Fee calculation
+function calculateFees() {
+    const days = parseFloat(document.getElementById('assessment_days').value) || 0;
+    const rate = parseFloat(document.getElementById('day_rate').value) || 0;
+    const multiSite = parseFloat(document.getElementById('multi_site_premium').value) || 0;
+    const other = parseFloat(document.getElementById('other_fees').value) || 0;
+    
+    const totalFees = (days * rate) + multiSite + other;
+    const geaFee = totalFees * 0.15;
+    const glabRevenue = totalFees * 0.85;
+    
+    document.getElementById('total_fees').textContent = '$' + totalFees.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('gea_fee').textContent = '$' + geaFee.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('glab_revenue').textContent = '$' + glabRevenue.toLocaleString('en-US', {minimumFractionDigits: 2});
+}
+
+// Add event listeners
+['assessment_days', 'day_rate', 'multi_site_premium', 'other_fees'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', calculateFees);
+});
+</script>
+{% endblock %}

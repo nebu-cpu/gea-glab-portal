@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{% if glab %}Edit GLAB{% else %}New GLAB{% endif %} - GEA Portal{% endblock %}
+{% block page_header %}{% if glab %}Edit GLAB{% else %}Register New GLAB{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% if glab %}Edit GLAB{% else %}Register New Licensed Assessment Body{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('new_glab') }}">
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label">GLAB Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required 
+                                   value="{{ glab.name if glab else '' }}" 
+                                   placeholder="Full legal name of the assessment body">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">License Number <span class="text-danger">*</span></label>
+                            <input type="text" name="license_number" class="form-control" required 
+                                   value="{{ glab.license_number if glab else '' }}" 
+                                   placeholder="e.g., GLAB-ME001">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Country <span class="text-danger">*</span></label>
+                            <input type="text" name="country" class="form-control" required 
+                                   value="{{ glab.country if glab else '' }}" 
+                                   placeholder="e.g., United Arab Emirates">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Address</label>
+                            <textarea name="address" class="form-control" rows="2" 
+                                      placeholder="Full address">{{ glab.address if glab else '' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Email <span class="text-danger">*</span></label>
+                            <input type="email" name="contact_email" class="form-control" required 
+                                   value="{{ glab.contact_email if glab else '' }}" 
+                                   placeholder="contact@glab.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Phone</label>
+                            <input type="text" name="contact_phone" class="form-control" 
+                                   value="{{ glab.contact_phone if glab else '' }}" 
+                                   placeholder="+971-4-123-4567">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-check-lg me-2"></i>{% if glab %}Save Changes{% else %}Register GLAB{% endif %}
+                        </button>
+                        <a href="{{ url_for('list_glabs') }}" class="btn btn-light">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

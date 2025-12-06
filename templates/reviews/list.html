@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Reviews - GEA Portal{% endblock %}
+{% block page_header %}Pending Reviews{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h4 class="fw-bold mb-1">Proposals Pending GEA Review</h4>
+    <p class="text-muted mb-0">Review and approve GLAB proposals per Article 4.2 of the Financial Operations Framework</p>
+</div>
+
+{% if projects %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    <strong>Review Guidelines (Article 4.2):</strong> Verify fees are within approved ranges, scope/timeline are appropriate, team composition is adequate, and no conflicts of interest exist.
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">Reference</th>
+                        <th>GLAB</th>
+                        <th>Client</th>
+                        <th>Type</th>
+                        <th>Assessment Fees</th>
+                        <th>GEA Fee (15%)</th>
+                        <th>Submitted</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-medium">{{ project.reference_number }}</div>
+                        </td>
+                        <td>
+                            <div>{{ project.glab.name[:20] }}{% if project.glab.name|length > 20 %}...{% endif %}</div>
+                            <small class="text-muted">{{ project.glab.license_number }}</small>
+                        </td>
+                        <td>
+                            <div>{{ project.client.name[:20] }}{% if project.client.name|length > 20 %}...{% endif %}</div>
+                            <small class="text-muted">{{ project.client.country }}</small>
+                        </td>
+                        <td>{{ project.assessment_type.replace('_', ' ').title() }}</td>
+                        <td class="fw-medium">
+                            {% if project.total_assessment_fees %}
+                            ${{ "{:,.2f}".format(project.total_assessment_fees) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="text-success fw-medium">
+                            {% if project.gea_fee %}
+                            ${{ "{:,.2f}".format(project.gea_fee) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ project.created_at.strftime('%b %d, %Y') }}</td>
+                        <td class="text-end pe-3">
+                            <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-sm btn-gea">
+                                Review
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <i class="bi bi-check-circle fs-1 text-success d-block mb-3"></i>
+                            <p class="text-muted mb-0">No proposals pending review</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

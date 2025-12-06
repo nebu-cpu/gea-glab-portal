@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error - GEA Portal{% endblock %}
+{% block page_header %}Error{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+    <i class="bi bi-x-circle fs-1 text-danger d-block mb-3"></i>
+    <h2 class="fw-bold">500 - Server Error</h2>
+    <p class="text-muted mb-4">Something went wrong on our end. Please try again later.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-gea">
+        <i class="bi bi-house me-2"></i>Return to Dashboard
+    </a>
+</div>
+{% endblock %}
+
+{% block public_content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);">
+    <div class="text-center text-white">
+        <i class="bi bi-x-circle fs-1 d-block mb-3"></i>
+        <h2 class="fw-bold">500 - Server Error</h2>
+        <p class="mb-4 opacity-75">Something went wrong. Please try again later.</p>
+        <a href="{{ url_for('login') }}" class="btn btn-light">
+            <i class="bi bi-arrow-clockwise me-2"></i>Try Again
+        </a>
+    </div>
+</div>
+{% endblock %}

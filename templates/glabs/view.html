@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ glab.name }} - GEA Portal{% endblock %}
+{% block page_header %}GLAB Details{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">{{ glab.name }}</h4>
+        <p class="text-muted mb-0">
+            <code>{{ glab.license_number }}</code> · {{ glab.country }}
+            {% if glab.status == 'active' %}
+            <span class="badge bg-success ms-2">Active</span>
+            {% elif glab.status == 'suspended' %}
+            <span class="badge bg-warning ms-2">Suspended</span>
+            {% else %}
+            <span class="badge bg-danger ms-2">Terminated</span>
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <!-- GLAB Info -->
+        <div class="card mb-4">
+            <div class="card-header">GLAB Information</div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted">License</td>
+                        <td class="text-end"><code>{{ glab.license_number }}</code></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Country</td>
+                        <td class="text-end">{{ glab.country }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td class="text-end">{{ glab.status.title() }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Pre-Approved</td>
+                        <td class="text-end">{{ 'Yes' if glab.pre_approved else 'No' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Registered</td>
+                        <td class="text-end">{{ glab.created_at.strftime('%b %d, %Y') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Contact -->
+        <div class="card mb-4">
+            <div class="card-header">Contact Information</div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <div class="text-muted small">Email</div>
+                    <div><a href="mailto:{{ glab.contact_email }}">{{ glab.contact_email }}</a></div>
+                </div>
+                <div class="mb-2">
+                    <div class="text-muted small">Phone</div>
+                    <div>{{ glab.contact_phone or '-' }}</div>
+                </div>
+                <div>
+                    <div class="text-muted small">Address</div>
+                    <div>{{ glab.address or '-' }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats -->
+        <div class="card">
+            <div class="card-header">Statistics</div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="fs-3 fw-bold text-primary">{{ clients|length }}</div>
+                        <div class="small text-muted">Clients</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="fs-3 fw-bold text-success">{{ projects|length }}</div>
+                        <div class="small text-muted">Projects</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-8">
+        <!-- Projects -->
+        <div class="card">
+            <div class="card-header">Recent Projects</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Reference</th>
+                                <th>Client</th>
+                                <th>Phase</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Fees</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in projects[:15] %}
+                            <tr onclick="window.location='{{ url_for('view_project', project_id=project.id) }}'" style="cursor: pointer;">
+                                <td class="ps-3">
+                                    <div class="fw-medium">{{ project.reference_number }}</div>
+                                </td>
+                                <td>{{ project.client.name[:25] }}{% if project.client.name|length > 25 %}...{% endif %}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark">
+                                        {{ project.current_phase.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-{{ project.gea_proposal_status }}">
+                                        {{ project.gea_proposal_status.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    {% if project.total_assessment_fees %}
+                                    ${{ "{:,.0f}".format(project.total_assessment_fees) }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No projects yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

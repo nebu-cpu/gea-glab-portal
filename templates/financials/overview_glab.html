@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Overview - GEA Portal{% endblock %}
+{% block page_header %}Financial Overview{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h4 class="fw-bold mb-1">{{ glab.name }} - Financial Overview</h4>
+    <p class="text-muted mb-0">Track your assessment fees and GEA remittances</p>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #dbeafe; color: #1e40af;">
+                    <i class="bi bi-cash"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_fees) }}</div>
+                    <div class="stat-label">Total Assessment Fees</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #d1fae5; color: #065f46;">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_glab_revenue) }}</div>
+                    <div class="stat-label">Your Revenue (85%)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #fef3c7; color: #92400e;">
+                    <i class="bi bi-percent"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_gea_fees) }}</div>
+                    <div class="stat-label">GEA Fees Due (15%)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #e0e7ff; color: #4338ca;">
+                    <i class="bi bi-send-check"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_remitted) }}</div>
+                    <div class="stat-label">Remitted to GEA</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Outstanding Notice -->
+{% set outstanding = total_gea_fees - total_remitted %}
+{% if outstanding > 0 %}
+<div class="alert alert-warning mb-4">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle fs-4 me-3"></i>
+        <div>
+            <strong>Outstanding GEA Fees: ${{ "{:,.2f}".format(outstanding) }}</strong>
+            <p class="mb-0 small">Per Article 7.1, GEA fees are due within 5 days of receiving client payment.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Projects -->
+<div class="card">
+    <div class="card-header">Your Projects</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">Reference</th>
+                        <th>Client</th>
+                        <th class="text-end">Assessment Fees</th>
+                        <th class="text-end">Your Revenue</th>
+                        <th class="text-end">GEA Fee</th>
+                        <th>Payment</th>
+                        <th>Remittance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td class="ps-3">
+                            <a href="{{ url_for('view_project', project_id=project.id) }}" class="fw-medium text-decoration-none">
+                                {{ project.reference_number }}
+                            </a>
+                        </td>
+                        <td>{{ project.client.name[:25] }}{% if project.client.name|length > 25 %}...{% endif %}</td>
+                        <td class="text-end">${{ "{:,.2f}".format(project.total_assessment_fees or 0) }}</td>
+                        <td class="text-end text-success">${{ "{:,.2f}".format(project.glab_revenue or 0) }}</td>
+                        <td class="text-end text-danger">${{ "{:,.2f}".format(project.gea_fee or 0) }}</td>
+                        <td>
+                            {% if project.initial_payment_received and project.final_payment_received %}
+                            <span class="badge bg-success">Full</span>
+                            {% elif project.initial_payment_received %}
+                            <span class="badge bg-warning text-dark">50%</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if project.gea_fee_remitted %}
+                            <span class="badge bg-success"><i class="bi bi-check"></i></span>
+                            {% else %}
+                            <span class="badge bg-danger">Due</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No projects with financial data</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

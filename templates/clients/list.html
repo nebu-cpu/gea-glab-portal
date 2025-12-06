@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Clients - GEA Portal{% endblock %}
+{% block page_header %}Clients{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Clients</h4>
+        <p class="text-muted mb-0">Manage organizations seeking GEA certification</p>
+    </div>
+    <a href="{{ url_for('new_client') }}" class="btn btn-gea">
+        <i class="bi bi-plus-lg me-2"></i>Add Client
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">Organization</th>
+                        {% if current_user.role == 'gea_admin' %}
+                        <th>GLAB</th>
+                        {% endif %}
+                        <th>Industry</th>
+                        <th>Size</th>
+                        <th>Sites</th>
+                        <th>Contact</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients %}
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-medium">{{ client.name }}</div>
+                            <small class="text-muted">{{ client.country }}</small>
+                        </td>
+                        {% if current_user.role == 'gea_admin' %}
+                        <td>
+                            <span class="badge bg-light text-dark">{{ client.glab.license_number }}</span>
+                        </td>
+                        {% endif %}
+                        <td>{{ client.industry_sector or '-' }}</td>
+                        <td>{{ client.total_employees or '-' }} employees</td>
+                        <td>{{ client.number_of_sites }} site(s)</td>
+                        <td>
+                            <div>{{ client.primary_contact_name or '-' }}</div>
+                            <small class="text-muted">{{ client.primary_contact_email }}</small>
+                        </td>
+                        <td class="text-end pe-3">
+                            <a href="{{ url_for('view_client', client_id=client.id) }}" class="btn btn-sm btn-gea-outline">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{% if current_user.role == 'gea_admin' %}7{% else %}6{% endif %}" class="text-center py-5">
+                            <i class="bi bi-people fs-1 text-muted d-block mb-3"></i>
+                            <p class="text-muted mb-3">No clients yet</p>
+                            <a href="{{ url_for('new_client') }}" class="btn btn-gea">
+                                <i class="bi bi-plus me-1"></i>Add First Client
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

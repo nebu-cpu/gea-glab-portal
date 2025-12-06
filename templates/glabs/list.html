@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}GLABs - GEA Portal{% endblock %}
+{% block page_header %}GLABs{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Licensed Assessment Bodies</h4>
+        <p class="text-muted mb-0">Manage GEA Licensed Assessment Bodies (GLABs)</p>
+    </div>
+    <a href="{{ url_for('new_glab') }}" class="btn btn-gea">
+        <i class="bi bi-plus-lg me-2"></i>Add GLAB
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">GLAB Name</th>
+                        <th>License Number</th>
+                        <th>Region</th>
+                        <th>Status</th>
+                        <th>Pre-Approved</th>
+                        <th>Projects</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for glab in glabs %}
+                    <tr>
+                        <td class="ps-3">
+                            <div class="fw-medium">{{ glab.name }}</div>
+                            <small class="text-muted">{{ glab.contact_email }}</small>
+                        </td>
+                        <td><code>{{ glab.license_number }}</code></td>
+                        <td>{{ glab.country }}</td>
+                        <td>
+                            {% if glab.status == 'active' %}
+                            <span class="badge bg-success">Active</span>
+                            {% elif glab.status == 'suspended' %}
+                            <span class="badge bg-warning">Suspended</span>
+                            {% else %}
+                            <span class="badge bg-danger">Terminated</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if glab.pre_approved %}
+                            <span class="badge bg-info"><i class="bi bi-check-circle me-1"></i>Yes</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">No</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ glab.projects.count() }}</td>
+                        <td class="text-end pe-3">
+                            <a href="{{ url_for('view_glab', glab_id=glab.id) }}" class="btn btn-sm btn-gea-outline">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <i class="bi bi-building fs-1 text-muted d-block mb-3"></i>
+                            <p class="text-muted mb-3">No GLABs registered yet</p>
+                            <a href="{{ url_for('new_glab') }}" class="btn btn-gea">
+                                <i class="bi bi-plus me-1"></i>Register First GLAB
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

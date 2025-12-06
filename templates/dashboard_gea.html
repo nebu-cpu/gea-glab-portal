@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}GEA Dashboard - GLAB Portal{% endblock %}
+{% block page_header %}GEA Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="fw-bold mb-0">Welcome back, {{ current_user.username }}</h4>
+        <p class="text-muted">Here's your GEA operations overview</p>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #dbeafe; color: #1e40af;">
+                    <i class="bi bi-building"></i>
+                </div>
+                <div>
+                    <div class="stat-value">{{ glabs|length }}</div>
+                    <div class="stat-label">Active GLABs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #fef3c7; color: #92400e;">
+                    <i class="bi bi-clipboard-check"></i>
+                </div>
+                <div>
+                    <div class="stat-value">{{ pending_reviews }}</div>
+                    <div class="stat-label">Pending Reviews</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #d1fae5; color: #065f46;">
+                    <i class="bi bi-file-earmark-text"></i>
+                </div>
+                <div>
+                    <div class="stat-value">{{ pending_documents }}</div>
+                    <div class="stat-label">Documents to Review</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #fee2e2; color: #991b1b;">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_gea_fees_due) }}</div>
+                    <div class="stat-label">GEA Fees Outstanding</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Recent Projects -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Recent Projects</span>
+                <a href="{{ url_for('list_projects') }}" class="btn btn-sm btn-gea-outline">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Reference</th>
+                                <th>GLAB</th>
+                                <th>Client</th>
+                                <th>Phase</th>
+                                <th>GEA Status</th>
+                                <th class="text-end pe-3">Fees</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in projects[:10] %}
+                            <tr onclick="window.location='{{ url_for('view_project', project_id=project.id) }}'" style="cursor: pointer;">
+                                <td class="ps-3">
+                                    <span class="fw-medium">{{ project.reference_number }}</span>
+                                </td>
+                                <td>{{ project.glab.name[:20] }}{% if project.glab.name|length > 20 %}...{% endif %}</td>
+                                <td>{{ project.client.name[:20] }}{% if project.client.name|length > 20 %}...{% endif %}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark">
+                                        {{ project.current_phase.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-{{ project.gea_proposal_status }}">
+                                        {{ project.gea_proposal_status.replace('_', ' ').title() }}
+                                    </span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    {% if project.total_assessment_fees %}
+                                    ${{ "{:,.0f}".format(project.total_assessment_fees) }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No projects yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- GLABs Overview -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>GLABs</span>
+                <a href="{{ url_for('new_glab') }}" class="btn btn-sm btn-gea">
+                    <i class="bi bi-plus"></i> Add
+                </a>
+            </div>
+            <div class="card-body">
+                {% for glab in glabs %}
+                <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                    <div>
+                        <div class="fw-medium">{{ glab.name }}</div>
+                        <small class="text-muted">{{ glab.license_number }} · {{ glab.country }}</small>
+                    </div>
+                    <a href="{{ url_for('view_glab', glab_id=glab.id) }}" class="btn btn-sm btn-light">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">No GLABs registered</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Quick Actions</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <a href="{{ url_for('pending_reviews') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-clipboard-check d-block fs-4 mb-2"></i>
+                            Review Proposals
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('new_glab') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-building d-block fs-4 mb-2"></i>
+                            Add New GLAB
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('financial_overview') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-cash-stack d-block fs-4 mb-2"></i>
+                            Financial Overview
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('monthly_report') }}" class="btn btn-gea-outline w-100 py-3">
+                            <i class="bi bi-file-earmark-bar-graph d-block fs-4 mb-2"></i>
+                            Monthly Reports
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{% if client %}Edit Client{% else %}New Client{% endif %} - GEA Portal{% endblock %}
+{% block page_header %}{% if client %}Edit Client{% else %}New Client{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% if client %}Edit Client{% else %}Add New Client{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('new_client') }}">
+                    
+                    {% if glabs %}
+                    <!-- GLAB Selection (GEA Admin only) -->
+                    <div class="mb-4">
+                        <label class="form-label">Assign to GLAB <span class="text-danger">*</span></label>
+                        <select name="glab_id" class="form-select" required>
+                            <option value="">Select a GLAB...</option>
+                            {% for glab in glabs %}
+                            <option value="{{ glab.id }}">{{ glab.name }} ({{ glab.license_number }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <hr class="my-4">
+                    {% endif %}
+                    
+                    <!-- Organization Details -->
+                    <h6 class="text-uppercase text-muted small fw-bold mb-3">Organization Details</h6>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-8">
+                            <label class="form-label">Organization Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control" required 
+                                   value="{{ client.name if client else '' }}" placeholder="Full legal name">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Country <span class="text-danger">*</span></label>
+                            <input type="text" name="country" class="form-control" required 
+                                   value="{{ client.country if client else '' }}" placeholder="e.g., United States">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Registered Address</label>
+                            <textarea name="registered_address" class="form-control" rows="2" 
+                                      placeholder="Full address">{{ client.registered_address if client else '' }}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Industry/Sector</label>
+                            <input type="text" name="industry_sector" class="form-control" 
+                                   value="{{ client.industry_sector if client else '' }}" 
+                                   placeholder="e.g., Manufacturing, Healthcare">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Total Employees</label>
+                            <input type="number" name="total_employees" class="form-control" min="1"
+                                   value="{{ client.total_employees if client else '' }}" placeholder="Number">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Number of Sites</label>
+                            <input type="number" name="number_of_sites" class="form-control" min="1"
+                                   value="{{ client.number_of_sites if client else '1' }}" placeholder="1">
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Primary Contact -->
+                    <h6 class="text-uppercase text-muted small fw-bold mb-3">Primary Contact</h6>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Name</label>
+                            <input type="text" name="primary_contact_name" class="form-control" 
+                                   value="{{ client.primary_contact_name if client else '' }}" 
+                                   placeholder="Full name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Email <span class="text-danger">*</span></label>
+                            <input type="email" name="primary_contact_email" class="form-control" required
+                                   value="{{ client.primary_contact_email if client else '' }}" 
+                                   placeholder="email@example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact Phone</label>
+                            <input type="text" name="primary_contact_phone" class="form-control" 
+                                   value="{{ client.primary_contact_phone if client else '' }}" 
+                                   placeholder="+1 234 567 8900">
+                        </div>
+                    </div>
+                    
+                    <!-- Submit -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-check-lg me-2"></i>{% if client %}Save Changes{% else %}Add Client{% endif %}
+                        </button>
+                        <a href="{{ url_for('list_clients') }}" class="btn btn-light">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

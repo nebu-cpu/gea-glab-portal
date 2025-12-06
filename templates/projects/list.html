@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - GEA Portal{% endblock %}
+{% block page_header %}Projects{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Projects</h4>
+        <p class="text-muted mb-0">Manage assessment engagements and certifications</p>
+    </div>
+    <a href="{{ url_for('new_project') }}" class="btn btn-gea">
+        <i class="bi bi-plus-lg me-2"></i>New Project
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small">Phase</label>
+                <select name="phase" class="form-select">
+                    <option value="">All Phases</option>
+                    <option value="proposal" {{ 'selected' if request.args.get('phase') == 'proposal' }}>Proposal</option>
+                    <option value="engagement" {{ 'selected' if request.args.get('phase') == 'engagement' }}>Engagement</option>
+                    <option value="assessment" {{ 'selected' if request.args.get('phase') == 'assessment' }}>Assessment</option>
+                    <option value="reporting" {{ 'selected' if request.args.get('phase') == 'reporting' }}>Reporting</option>
+                    <option value="certification" {{ 'selected' if request.args.get('phase') == 'certification' }}>Certification</option>
+                    <option value="post_certification" {{ 'selected' if request.args.get('phase') == 'post_certification' }}>Post-Certification</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">GEA Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="pending" {{ 'selected' if request.args.get('status') == 'pending' }}>Pending Review</option>
+                    <option value="approved" {{ 'selected' if request.args.get('status') == 'approved' }}>Approved</option>
+                    <option value="adjustment_required" {{ 'selected' if request.args.get('status') == 'adjustment_required' }}>Adjustment Required</option>
+                    <option value="rejected" {{ 'selected' if request.args.get('status') == 'rejected' }}>Rejected</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-gea-outline w-100">
+                    <i class="bi bi-funnel me-1"></i>Filter
+                </button>
+            </div>
+            {% if request.args.get('phase') or request.args.get('status') %}
+            <div class="col-md-2">
+                <a href="{{ url_for('list_projects') }}" class="btn btn-light w-100">Clear</a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Projects Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">Reference</th>
+                        {% if current_user.role == 'gea_admin' %}
+                        <th>GLAB</th>
+                        {% endif %}
+                        <th>Client</th>
+                        <th>Type</th>
+                        <th>Phase</th>
+                        <th>GEA Status</th>
+                        <th class="text-end">Assessment Fees</th>
+                        <th class="text-end pe-3">GEA Fee (15%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr onclick="window.location='{{ url_for('view_project', project_id=project.id) }}'" style="cursor: pointer;">
+                        <td class="ps-3">
+                            <div class="fw-medium">{{ project.reference_number }}</div>
+                            <small class="text-muted">{{ project.created_at.strftime('%b %d, %Y') }}</small>
+                        </td>
+                        {% if current_user.role == 'gea_admin' %}
+                        <td>
+                            <div>{{ project.glab.name[:20] }}{% if project.glab.name|length > 20 %}...{% endif %}</div>
+                            <small class="text-muted">{{ project.glab.license_number }}</small>
+                        </td>
+                        {% endif %}
+                        <td>
+                            <div>{{ project.client.name[:25] }}{% if project.client.name|length > 25 %}...{% endif %}</div>
+                            <small class="text-muted">{{ project.client.country }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark">
+                                {{ project.assessment_type.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set phase_colors = {
+                                'proposal': '#3b82f6',
+                                'engagement': '#8b5cf6',
+                                'assessment': '#f59e0b',
+                                'reporting': '#06b6d4',
+                                'certification': '#10b981',
+                                'post_certification': '#6b7280'
+                            } %}
+                            <span class="badge" style="background: {{ phase_colors.get(project.current_phase, '#6b7280') }};">
+                                {{ project.current_phase.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ project.gea_proposal_status }}">
+                                {{ project.gea_proposal_status.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            {% if project.total_assessment_fees %}
+                            <span class="fw-medium">${{ "{:,.2f}".format(project.total_assessment_fees) }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            {% if project.gea_fee %}
+                            <span class="fw-medium text-success">${{ "{:,.2f}".format(project.gea_fee) }}</span>
+                            {% if project.gea_fee_remitted %}
+                            <br><small class="text-success"><i class="bi bi-check-circle"></i> Remitted</small>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{% if current_user.role == 'gea_admin' %}8{% else %}7{% endif %}" class="text-center py-5">
+                            <i class="bi bi-folder-x fs-1 text-muted d-block mb-3"></i>
+                            <p class="text-muted mb-3">No projects found</p>
+                            <a href="{{ url_for('new_project') }}" class="btn btn-gea">
+                                <i class="bi bi-plus me-1"></i>Create First Project
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Summary -->
+{% if projects %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center p-3 bg-white rounded">
+            <span class="text-muted">Showing {{ projects|length }} project(s)</span>
+            <div>
+                <span class="text-muted me-3">Total Fees: <strong>${{ "{:,.2f}".format(projects|sum(attribute='total_assessment_fees') or 0) }}</strong></span>
+                <span class="text-muted">GEA Fees: <strong class="text-success">${{ "{:,.2f}".format(projects|sum(attribute='gea_fee') or 0) }}</strong></span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

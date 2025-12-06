@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Report - GEA Portal{% endblock %}
+{% block page_header %}Monthly Report{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h4 class="fw-bold mb-1">Monthly Financial Report</h4>
+    <p class="text-muted mb-0">Per Article 11 - Monthly Reporting Requirements</p>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="GET" class="row g-3 align-items-end">
+            {% if glabs %}
+            <div class="col-md-4">
+                <label class="form-label small">GLAB</label>
+                <select name="glab_id" class="form-select">
+                    <option value="">All GLABs</option>
+                    {% for glab in glabs %}
+                    <option value="{{ glab.id }}" {{ 'selected' if selected_glab_id == glab.id }}>
+                        {{ glab.name }} ({{ glab.license_number }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-3">
+                <label class="form-label small">Reporting Period</label>
+                <input type="month" name="period" class="form-control" value="{{ period }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-gea w-100">
+                    <i class="bi bi-search me-1"></i>View
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Summary -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #dbeafe; color: #1e40af;">
+                    <i class="bi bi-folder-plus"></i>
+                </div>
+                <div>
+                    <div class="stat-value">{{ new_engagements }}</div>
+                    <div class="stat-label">New Engagements</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #d1fae5; color: #065f46;">
+                    <i class="bi bi-cash"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_invoiced) }}</div>
+                    <div class="stat-label">Total Invoiced</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon" style="background: #fef3c7; color: #92400e;">
+                    <i class="bi bi-percent"></i>
+                </div>
+                <div>
+                    <div class="stat-value">${{ "{:,.0f}".format(total_gea_fees) }}</div>
+                    <div class="stat-label">GEA Fees (15%)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Projects Table -->
+<div class="card">
+    <div class="card-header">Projects for {{ period }}</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="ps-3">Reference</th>
+                        {% if glabs %}
+                        <th>GLAB</th>
+                        {% endif %}
+                        <th>Client</th>
+                        <th>Type</th>
+                        <th>Phase</th>
+                        <th class="text-end">Assessment Fees</th>
+                        <th class="text-end pe-3">GEA Fee</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td class="ps-3">
+                            <a href="{{ url_for('view_project', project_id=project.id) }}" class="fw-medium text-decoration-none">
+                                {{ project.reference_number }}
+                            </a>
+                        </td>
+                        {% if glabs %}
+                        <td>{{ project.glab.license_number }}</td>
+                        {% endif %}
+                        <td>{{ project.client.name[:20] }}{% if project.client.name|length > 20 %}...{% endif %}</td>
+                        <td>{{ project.assessment_type.title() }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark">
+                                {{ project.current_phase.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td class="text-end">${{ "{:,.2f}".format(project.total_assessment_fees or 0) }}</td>
+                        <td class="text-end pe-3 text-success">${{ "{:,.2f}".format(project.gea_fee or 0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{% if glabs %}7{% else %}6{% endif %}" class="text-center py-4 text-muted">
+                            No projects for this period
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if projects %}
+                <tfoot class="table-light">
+                    <tr class="fw-bold">
+                        <td colspan="{% if glabs %}5{% else %}4{% endif %}" class="ps-3">TOTAL</td>
+                        <td class="text-end">${{ "{:,.2f}".format(total_invoiced) }}</td>
+                        <td class="text-end pe-3 text-success">${{ "{:,.2f}".format(total_gea_fees) }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Report Requirements -->
+<div class="alert alert-info mt-4">
+    <h6><i class="bi bi-info-circle me-2"></i>Monthly Reporting Requirements (Article 11.1)</h6>
+    <p class="small mb-2">By the 10th of each month, submit to GEA:</p>
+    <ul class="small mb-0">
+        <li>Engagement Summary: New, completed, in-progress</li>
+        <li>Financial Summary: Invoiced, received, GEA fees due/remitted</li>
+        <li>Supporting Documentation: Invoices, payment proofs, transfer confirmations</li>
+    </ul>
+</div>
+{% endblock %}
