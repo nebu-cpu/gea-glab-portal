@@ -38,8 +38,12 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Country <span class="text-danger">*</span></label>
-                            <input type="text" name="country" class="form-control" required 
-                                   value="{{ client.country if client else '' }}" placeholder="e.g., United States">
+                            <select name="country" class="form-select" required>
+                                <option value="">Select Country...</option>
+                                {% for country in countries %}
+                                <option value="{{ country }}" {{ 'selected' if client and client.country == country }}>{{ country }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Registered Address</label>

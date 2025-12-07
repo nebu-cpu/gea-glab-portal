@@ -529,7 +529,12 @@
                 
                 <div class="dropdown user-dropdown">
                     <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        {% if current_user.profile_photo %}
+                        <img src="{{ url_for('uploaded_file', filename=current_user.profile_photo) }}" 
+                             class="user-avatar" style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%;">
+                        {% else %}
                         <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+                        {% endif %}
                         <span class="d-none d-md-inline">{{ current_user.username }}</span>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">

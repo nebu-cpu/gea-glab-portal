@@ -117,8 +117,8 @@
                         <td>{{ project.client.name[:20] }}{% if project.client.name|length > 20 %}...{% endif %}</td>
                         <td>{{ project.assessment_type.title() }}</td>
                         <td>
-                            <span class="badge bg-light text-dark">
-                                {{ project.current_phase.replace('_', ' ').title() }}
+                            <span class="badge bg-primary">
+                                Phase {{ project.current_phase }}
                             </span>
                         </td>
                         <td class="text-end">${{ "{:,.2f}".format(project.total_assessment_fees or 0) }}</td>

@@ -330,9 +330,9 @@
                 <p class="text-muted small mb-0">No assessors assigned yet.</p>
                 {% endif %}
                 {% if current_user.role == 'glab_admin' %}
-                <a href="{{ url_for('manage_assessors', project_id=project.id) }}" class="btn btn-sm btn-gea-outline mt-2">
+                <button class="btn btn-sm btn-gea-outline mt-2" data-bs-toggle="modal" data-bs-target="#manageAssessorsModal">
                     <i class="bi bi-person-plus me-1"></i>Manage Assessors
-                </a>
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -391,5 +391,91 @@ function toggleChecklist(projectId, itemId, element) {
         alert('Failed to update checklist');
     });
 }
+
+function assignAssessor(assessorId) {
+    fetch(`/projects/{{ project.id }}/assessors/assign`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({assessor_id: assessorId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to assign assessor');
+        }
+    });
+}
+
+function removeAssessor(assessorId) {
+    if (!confirm('Remove this assessor from the project?')) return;
+    fetch(`/projects/{{ project.id }}/assessors/remove`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({assessor_id: assessorId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to remove assessor');
+        }
+    });
+}
 </script>
+
+<!-- Manage Assessors Modal -->
+{% if current_user.role == 'glab_admin' %}
+<div class="modal fade" id="manageAssessorsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-people me-2"></i>Manage Project Assessors</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="text-muted mb-3">Currently Assigned</h6>
+                {% if project.assessors %}
+                <div class="list-group mb-4">
+                    {% for assessor in project.assessors %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ assessor.full_name or assessor.username }}</strong>
+                            <br><small class="text-muted">{{ assessor.email }}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeAssessor({{ assessor.id }})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-4">No assessors assigned yet.</p>
+                {% endif %}
+                
+                <h6 class="text-muted mb-3">Available Assessors</h6>
+                <div class="list-group">
+                    {% for assessor in available_assessors %}
+                    {% if assessor not in project.assessors %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ assessor.full_name or assessor.username }}</strong>
+                            <br><small class="text-muted">{{ assessor.email }}</small>
+                        </div>
+                        <button class="btn btn-sm btn-gea-outline" onclick="assignAssessor({{ assessor.id }})">
+                            <i class="bi bi-plus"></i> Assign
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted">No available assessors. Contact GEA to assign assessors to your GLAB.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

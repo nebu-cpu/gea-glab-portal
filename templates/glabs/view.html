@@ -112,8 +112,8 @@
                                 </td>
                                 <td>{{ project.client.name[:25] }}{% if project.client.name|length > 25 %}...{% endif %}</td>
                                 <td>
-                                    <span class="badge bg-light text-dark">
-                                        {{ project.current_phase.replace('_', ' ').title() }}
+                                    <span class="badge bg-primary">
+                                        Phase {{ project.current_phase }}
                                     </span>
                                 </td>
                                 <td>

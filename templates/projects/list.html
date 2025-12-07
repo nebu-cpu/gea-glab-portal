@@ -104,8 +104,8 @@
                                 'certification': '#10b981',
                                 'post_certification': '#6b7280'
                             } %}
-                            <span class="badge" style="background: {{ phase_colors.get(project.current_phase, '#6b7280') }};">
-                                {{ project.current_phase.replace('_', ' ').title() }}
+                            <span class="badge bg-primary">
+                                Phase {{ project.current_phase }}: {{ phases[project.current_phase].name if project.current_phase in phases else 'Unknown' }}
                             </span>
                         </td>
                         <td>

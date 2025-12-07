@@ -28,9 +28,12 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Country <span class="text-danger">*</span></label>
-                            <input type="text" name="country" class="form-control" required 
-                                   value="{{ glab.country if glab else '' }}" 
-                                   placeholder="e.g., United Arab Emirates">
+                            <select name="country" class="form-select" required>
+                                <option value="">Select Country...</option>
+                                {% for country in countries %}
+                                <option value="{{ country }}" {{ 'selected' if glab and glab.country == country }}>{{ country }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Address</label>

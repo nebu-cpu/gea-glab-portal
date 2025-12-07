@@ -100,8 +100,8 @@
                                 <td>{{ project.glab.name[:20] }}{% if project.glab.name|length > 20 %}...{% endif %}</td>
                                 <td>{{ project.client.name[:20] }}{% if project.client.name|length > 20 %}...{% endif %}</td>
                                 <td>
-                                    <span class="badge bg-light text-dark">
-                                        {{ project.current_phase.replace('_', ' ').title() }}
+                                    <span class="badge bg-primary">
+                                        Phase {{ project.current_phase }}
                                     </span>
                                 </td>
                                 <td>
