@@ -1156,6 +1156,29 @@ def create_user():
         )
         user.set_password(password)
         
+        # Handle assessor-specific fields
+        if role == 'glab_assessor':
+            assessor_id = request.form.get('assessor_id')
+            if assessor_id:
+                # Check uniqueness
+                if User.query.filter_by(assessor_id=assessor_id).first():
+                    flash('Assessor ID already exists.', 'error')
+                    return redirect(url_for('create_user'))
+                user.assessor_id = assessor_id
+            
+            cert_date_str = request.form.get('certification_date')
+            if cert_date_str:
+                from datetime import datetime
+                user.certification_date = datetime.strptime(cert_date_str, '%Y-%m-%d').date()
+                # Calculate recertification due (3 years later)
+                user.recertification_due = user.certification_date.replace(year=user.certification_date.year + 3)
+            
+            user.assessor_specializations = request.form.get('assessor_specializations')
+        
+        # Handle technical expert fields
+        if role == 'technical_expert':
+            user.expert_domains = request.form.get('expert_domains')
+        
         db.session.add(user)
         db.session.commit()
         
@@ -1204,8 +1227,24 @@ def create_glab():
             address=request.form.get('address'),
             contact_email=request.form.get('contact_email'),
             contact_phone=request.form.get('contact_phone'),
+            license_type=request.form.get('license_type', 'annual'),
             created_by=current_user.id
         )
+        
+        # Handle license dates
+        license_start = request.form.get('license_start_date')
+        if license_start:
+            glab.license_start_date = datetime.strptime(license_start, '%Y-%m-%d').date()
+            # Calculate expiry based on license type
+            if glab.license_type == 'annual':
+                glab.license_expiry_date = glab.license_start_date.replace(year=glab.license_start_date.year + 1)
+            else:  # triennial
+                glab.license_expiry_date = glab.license_start_date.replace(year=glab.license_start_date.year + 3)
+        
+        next_payment = request.form.get('next_payment_due')
+        if next_payment:
+            glab.next_payment_due = datetime.strptime(next_payment, '%Y-%m-%d').date()
+        
         db.session.add(glab)
         db.session.commit()
         

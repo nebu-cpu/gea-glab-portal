@@ -36,12 +36,14 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label class="form-label">Role <span class="text-danger">*</span></label>
-                            <select name="role" id="roleSelect" class="form-select" required onchange="toggleGlabField()">
+                            <select name="role" id="roleSelect" class="form-select" required onchange="toggleRoleFields()">
                                 <option value="">Select role...</option>
                                 <option value="gea_admin">GEA Admin</option>
                                 <option value="gea_staff">GEA Staff</option>
                                 <option value="glab_admin">GLAB Admin</option>
                                 <option value="glab_assessor">GLAB Assessor</option>
+                                <option value="technical_expert">Technical Expert</option>
+                                <option value="cert_committee">Certification Committee</option>
                             </select>
                         </div>
                         <div class="col-md-6" id="glabField" style="display:none;">
@@ -55,13 +57,56 @@
                         </div>
                     </div>
                     
+                    <!-- Assessor-specific fields -->
+                    <div id="assessorFields" style="display:none;">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Assessor Information</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label">Assessor ID</label>
+                                <input type="text" name="assessor_id" id="assessorId" class="form-control" placeholder="e.g., ASR-2024-001">
+                                <small class="text-muted">Unique ID for certificate</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Certification Date</label>
+                                <input type="date" name="certification_date" id="certDate" class="form-control">
+                                <small class="text-muted">Date of certification</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Recertification Due</label>
+                                <input type="date" name="recertification_due" id="recertDate" class="form-control" readonly>
+                                <small class="text-muted">Auto-calculated (3 years)</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Specializations</label>
+                                <input type="text" name="assessor_specializations" class="form-control" placeholder="e.g., Manufacturing, Healthcare, Finance">
+                                <small class="text-muted">Comma-separated list of domains</small>
+                            </div>
+                        </div>
+                        <hr class="my-4">
+                    </div>
+                    
+                    <!-- Technical Expert fields -->
+                    <div id="expertFields" style="display:none;">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Technical Expert Information</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="form-label">Expertise Domains</label>
+                                <input type="text" name="expert_domains" class="form-control" placeholder="e.g., Aviation, Aerospace, Automotive">
+                                <small class="text-muted">Comma-separated list of expertise areas</small>
+                            </div>
+                        </div>
+                        <hr class="my-4">
+                    </div>
+                    
                     <div class="alert alert-info">
                         <h6><i class="bi bi-info-circle me-2"></i>Role Descriptions</h6>
                         <ul class="mb-0 small">
-                            <li><strong>GEA Admin:</strong> Full access - can create accounts, manage GLABs, approve/deny documents</li>
-                            <li><strong>GEA Staff:</strong> Can review documents and communicate with GLABs</li>
-                            <li><strong>GLAB Admin:</strong> Manages their GLAB's clients, projects, and assessors</li>
-                            <li><strong>GLAB Assessor:</strong> Can only view assigned projects and upload documents</li>
+                            <li><strong>GEA Admin:</strong> Full access - create accounts, manage GLABs, approve/deny documents</li>
+                            <li><strong>GEA Staff:</strong> Review documents and communicate with GLABs</li>
+                            <li><strong>GLAB Admin:</strong> Manages GLAB's clients, projects, and assessors</li>
+                            <li><strong>GLAB Assessor:</strong> View assigned projects, upload documents, complete checklists</li>
+                            <li><strong>Technical Expert:</strong> Subject-matter experts for specialized industries</li>
+                            <li><strong>Certification Committee:</strong> Committee members for certification decisions</li>
                         </ul>
                     </div>
                     
@@ -80,11 +125,14 @@
 
 {% block extra_js %}
 <script>
-function toggleGlabField() {
+function toggleRoleFields() {
     const role = document.getElementById('roleSelect').value;
     const glabField = document.getElementById('glabField');
     const glabSelect = document.getElementById('glabSelect');
+    const assessorFields = document.getElementById('assessorFields');
+    const expertFields = document.getElementById('expertFields');
     
+    // GLAB field (for GLAB admin and assessor)
     if (role === 'glab_admin' || role === 'glab_assessor') {
         glabField.style.display = 'block';
         glabSelect.required = true;
@@ -93,6 +141,29 @@ function toggleGlabField() {
         glabSelect.required = false;
         glabSelect.value = '';
     }
+    
+    // Assessor fields
+    if (role === 'glab_assessor') {
+        assessorFields.style.display = 'block';
+    } else {
+        assessorFields.style.display = 'none';
+    }
+    
+    // Expert fields
+    if (role === 'technical_expert') {
+        expertFields.style.display = 'block';
+    } else {
+        expertFields.style.display = 'none';
+    }
 }
+
+// Auto-calculate recertification date (3 years from certification)
+document.getElementById('certDate').addEventListener('change', function() {
+    const certDate = new Date(this.value);
+    if (certDate) {
+        certDate.setFullYear(certDate.getFullYear() + 3);
+        document.getElementById('recertDate').value = certDate.toISOString().split('T')[0];
+    }
+});
 </script>
 {% endblock %}
