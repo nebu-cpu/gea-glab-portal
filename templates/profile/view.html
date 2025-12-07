@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - GEA Portal{% endblock %}
+{% block page_header %}My Profile{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person-circle me-2"></i>Profile Information</span>
+                <a href="{{ url_for('edit_profile') }}" class="btn btn-gea-outline btn-sm">
+                    <i class="bi bi-pencil me-1"></i>Edit Profile
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center mb-4">
+                        {% if current_user.profile_photo %}
+                        <img src="{{ url_for('uploaded_file', filename=current_user.profile_photo) }}" 
+                             class="rounded-circle mb-3" 
+                             style="width: 150px; height: 150px; object-fit: cover;">
+                        {% else %}
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" 
+                             style="width: 150px; height: 150px; font-size: 4rem;">
+                            {{ current_user.username[0].upper() }}
+                        </div>
+                        {% endif %}
+                        <h5 class="mb-1">{{ current_user.full_name or current_user.username }}</h5>
+                        <span class="badge bg-primary">{{ current_user.role.replace('_', ' ').title() }}</span>
+                    </div>
+                    <div class="col-md-8">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td class="text-muted" style="width: 140px;">Username</td>
+                                <td><strong>{{ current_user.username }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Email</td>
+                                <td>{{ current_user.email }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Phone</td>
+                                <td>{{ current_user.phone or 'Not set' }}</td>
+                            </tr>
+                            {% if current_user.glab %}
+                            <tr>
+                                <td class="text-muted">Organization</td>
+                                <td>{{ current_user.glab.name }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if current_user.role == 'glab_assessor' %}
+                            <tr>
+                                <td class="text-muted">Assessor ID</td>
+                                <td>{{ current_user.assessor_id or 'Not assigned' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Certification Date</td>
+                                <td>{{ current_user.certification_date.strftime('%B %d, %Y') if current_user.certification_date else 'Not set' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Recertification Due</td>
+                                <td>
+                                    {% if current_user.recertification_due %}
+                                    {{ current_user.recertification_due.strftime('%B %d, %Y') }}
+                                    {% set days_until = (current_user.recertification_due - today).days if current_user.recertification_due else 0 %}
+                                    {% if days_until <= 60 and days_until > 0 %}
+                                    <span class="badge bg-warning ms-2">{{ days_until }} days left</span>
+                                    {% elif days_until <= 0 %}
+                                    <span class="badge bg-danger ms-2">Overdue</span>
+                                    {% endif %}
+                                    {% else %}
+                                    Not set
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td class="text-muted">Member Since</td>
+                                <td>{{ current_user.created_at.strftime('%B %d, %Y') }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Last Login</td>
+                                <td>{{ current_user.last_login.strftime('%B %d, %Y %H:%M') if current_user.last_login else 'N/A' }}</td>
+                            </tr>
+                        </table>
+                        
+                        {% if current_user.bio %}
+                        <hr>
+                        <h6 class="text-muted mb-2">Bio</h6>
+                        <p class="mb-0">{{ current_user.bio }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-gear me-2"></i>Settings
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>Email Notifications</strong>
+                        <p class="text-muted mb-0 small">Receive email alerts for important updates</p>
+                    </div>
+                    <span class="badge bg-{{ 'success' if current_user.email_notifications else 'secondary' }}">
+                        {{ 'Enabled' if current_user.email_notifications else 'Disabled' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

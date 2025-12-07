@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - GEA Portal{% endblock %}
+{% block page_header %}Edit Profile{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-person-circle me-2"></i>Edit Profile Information
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <!-- Profile Photo -->
+                        <div class="col-12 text-center">
+                            {% if current_user.profile_photo %}
+                            <img src="{{ url_for('uploaded_file', filename=current_user.profile_photo) }}" 
+                                 class="rounded-circle mb-3" 
+                                 style="width: 120px; height: 120px; object-fit: cover;"
+                                 id="photoPreview">
+                            {% else %}
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" 
+                                 style="width: 120px; height: 120px; font-size: 3rem;" id="photoPlaceholder">
+                                {{ current_user.username[0].upper() }}
+                            </div>
+                            <img src="" class="rounded-circle mb-3 d-none" 
+                                 style="width: 120px; height: 120px; object-fit: cover;"
+                                 id="photoPreview">
+                            {% endif %}
+                            <div>
+                                <label class="btn btn-gea-outline btn-sm">
+                                    <i class="bi bi-camera me-1"></i>Upload Photo
+                                    <input type="file" name="profile_photo" accept="image/*" class="d-none" 
+                                           onchange="previewPhoto(this)">
+                                </label>
+                            </div>
+                            <small class="text-muted">Max 5MB. JPG, PNG, or GIF</small>
+                        </div>
+                        
+                        <!-- Basic Info -->
+                        <div class="col-md-6">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" value="{{ current_user.username }}" disabled>
+                            <small class="text-muted">Username cannot be changed</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" value="{{ current_user.email }}" disabled>
+                            <small class="text-muted">Contact admin to change email</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" name="full_name" class="form-control" 
+                                   value="{{ current_user.full_name or '' }}" placeholder="Your full name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" name="phone" class="form-control" 
+                                   value="{{ current_user.phone or '' }}" placeholder="+1 (555) 123-4567">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Bio</label>
+                            <textarea name="bio" class="form-control" rows="3" 
+                                      placeholder="Tell us about yourself...">{{ current_user.bio or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="bi bi-gear me-2"></i>Notification Settings
+                </div>
+                <div class="card-body">
+                    <div class="form-check form-switch">
+                        <input type="checkbox" name="email_notifications" class="form-check-input" 
+                               id="emailNotifications" {{ 'checked' if current_user.email_notifications }}>
+                        <label class="form-check-label" for="emailNotifications">
+                            <strong>Email Notifications</strong>
+                            <p class="text-muted mb-0 small">Receive email alerts for chat messages, announcements, and reminders</p>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('view_profile') }}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>Cancel
+                </a>
+                <button type="submit" class="btn btn-gea">
+                    <i class="bi bi-check-lg me-1"></i>Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function previewPhoto(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('photoPreview');
+            const placeholder = document.getElementById('photoPlaceholder');
+            preview.src = e.target.result;
+            preview.classList.remove('d-none');
+            if (placeholder) placeholder.classList.add('d-none');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+</script>
+{% endblock %}

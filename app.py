@@ -707,6 +707,120 @@ def notify_project_participants(project, notification_type, title, message, excl
         create_notification(user_id, notification_type, title, message, 'project', project.id)
 
 
+def check_and_send_reminders():
+    """Check for due reminders and create notifications"""
+    today = datetime.utcnow().date()
+    reminder_days = [60, 30, 15, 5]
+    
+    # GLAB License Payment Reminders
+    for glab in GLAB.query.filter(GLAB.next_payment_due != None, GLAB.status == 'active').all():
+        for days in reminder_days:
+            reminder_date = glab.next_payment_due - timedelta(days=days)
+            if today == reminder_date:
+                # Check if already sent
+                existing = ScheduledReminder.query.filter_by(
+                    reminder_type='license_payment',
+                    target_type='glab',
+                    target_id=glab.id,
+                    days_before=days
+                ).first()
+                
+                if not existing or not existing.sent:
+                    # Notify GLAB admins
+                    for user in User.query.filter_by(glab_id=glab.id, role='glab_admin', is_active=True).all():
+                        create_notification(
+                            user.id,
+                            'license_reminder',
+                            f'License Payment Due in {days} Days',
+                            f'Your GLAB license payment is due on {glab.next_payment_due.strftime("%B %d, %Y")}. Please ensure timely payment to maintain your license.',
+                            'glab',
+                            glab.id
+                        )
+                    
+                    # Also notify GEA
+                    for user in User.query.filter(User.role.in_(['gea_admin', 'gea_staff']), User.is_active == True).all():
+                        create_notification(
+                            user.id,
+                            'license_reminder',
+                            f'GLAB License Payment Due: {glab.name}',
+                            f'{glab.name} license payment is due in {days} days ({glab.next_payment_due.strftime("%B %d, %Y")}).',
+                            'glab',
+                            glab.id
+                        )
+                    
+                    # Mark as sent
+                    if existing:
+                        existing.sent = True
+                        existing.sent_at = datetime.utcnow()
+                    else:
+                        reminder = ScheduledReminder(
+                            reminder_type='license_payment',
+                            target_type='glab',
+                            target_id=glab.id,
+                            due_date=glab.next_payment_due,
+                            days_before=days,
+                            sent=True,
+                            sent_at=datetime.utcnow()
+                        )
+                        db.session.add(reminder)
+    
+    # Assessor Recertification Reminders
+    for assessor in User.query.filter(User.role == 'glab_assessor', User.recertification_due != None, User.is_active == True).all():
+        for days in reminder_days:
+            reminder_date = assessor.recertification_due - timedelta(days=days)
+            if today == reminder_date:
+                existing = ScheduledReminder.query.filter_by(
+                    reminder_type='recertification',
+                    target_type='assessor',
+                    target_id=assessor.id,
+                    days_before=days
+                ).first()
+                
+                if not existing or not existing.sent:
+                    # Notify assessor
+                    create_notification(
+                        assessor.id,
+                        'recertification_reminder',
+                        f'Recertification Due in {days} Days',
+                        f'Your assessor certification expires on {assessor.recertification_due.strftime("%B %d, %Y")}. Please ensure you have completed the required CPD hours and apply for recertification.',
+                        'cpd',
+                        None
+                    )
+                    
+                    # Mark as sent
+                    if existing:
+                        existing.sent = True
+                        existing.sent_at = datetime.utcnow()
+                    else:
+                        reminder = ScheduledReminder(
+                            reminder_type='recertification',
+                            target_type='assessor',
+                            target_id=assessor.id,
+                            due_date=assessor.recertification_due,
+                            days_before=days,
+                            sent=True,
+                            sent_at=datetime.utcnow()
+                        )
+                        db.session.add(reminder)
+    
+    db.session.commit()
+
+
+# Run reminder check on each request (lightweight, only checks dates)
+@app.before_request
+def before_request_reminder_check():
+    """Check reminders once per day per session"""
+    if current_user.is_authenticated:
+        last_check = session.get('last_reminder_check')
+        today = datetime.utcnow().date().isoformat()
+        if last_check != today:
+            try:
+                check_and_send_reminders()
+                session['last_reminder_check'] = today
+            except Exception as e:
+                app.logger.error(f"Reminder check error: {str(e)}")
+
+
 # =============================================================================
 # AUTHENTICATION ROUTES
 # =============================================================================
@@ -810,7 +924,45 @@ def dashboard():
             # Assessor Dashboard - only sees assigned projects
             projects = list(current_user.assigned_projects)
             
+            # CPD tracking
+            cpd_hours = sum(log.hours for log in current_user.cpd_logs if log.status == 'approved')
+            
             return render_template('dashboard_assessor.html',
+                projects=projects,
+                phases=PHASES,
+                cpd_hours=cpd_hours
+            )
+        
+        elif current_user.role == 'technical_expert':
+            # Technical Expert Dashboard - sees assigned projects
+            projects = list(current_user.expert_projects)
+            
+            return render_template('dashboard_expert.html',
+                projects=projects,
+                phases=PHASES
+            )
+        
+        elif current_user.role == 'cert_committee':
+            # Certification Committee Dashboard - sees projects in Phase 7
+            projects = list(current_user.committee_projects)
+            pending_decisions = [p for p in projects if p.current_phase == 7]
+            
+            return render_template('dashboard_committee.html',
+                projects=projects,
+                pending_decisions=pending_decisions,
+                phases=PHASES
+            )
+        
+        elif current_user.role == 'client_user':
+            # Client User Dashboard - sees their organization's projects
+            client = Client.query.get(current_user.client_id)
+            if client:
+                projects = list(client.projects.all())
+            else:
+                projects = []
+            
+            return render_template('dashboard_client.html',
+                client=client,
                 projects=projects,
                 phases=PHASES
             )
@@ -1567,6 +1719,57 @@ def advance_phase(project_id):
     
     flash(f'Project advanced to Phase {project.current_phase}: {PHASES[project.current_phase]["name"]}', 'success')
     return redirect(url_for('view_project', project_id=project_id))
+
+
+# =============================================================================
+# PROFILE MANAGEMENT
+# =============================================================================
+
+@app.route('/profile')
+@login_required
+def view_profile():
+    return render_template('profile/view.html')
+
+
+@app.route('/profile/edit', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    if request.method == 'POST':
+        current_user.full_name = request.form.get('full_name')
+        current_user.phone = request.form.get('phone')
+        current_user.bio = request.form.get('bio')
+        
+        # Handle profile photo upload
+        if 'profile_photo' in request.files:
+            file = request.files['profile_photo']
+            if file and file.filename and allowed_file(file.filename):
+                # Delete old photo if exists
+                if current_user.profile_photo:
+                    old_path = os.path.join(app.config['UPLOAD_FOLDER'], current_user.profile_photo)
+                    if os.path.exists(old_path):
+                        os.remove(old_path)
+                
+                filename = secure_filename(file.filename)
+                stored_filename = f"profile_{current_user.id}_{uuid.uuid4()}_{filename}"
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
+                file.save(file_path)
+                current_user.profile_photo = stored_filename
+        
+        # Update email notifications preference
+        current_user.email_notifications = request.form.get('email_notifications') == 'on'
+        
+        db.session.commit()
+        flash('Profile updated successfully.', 'success')
+        return redirect(url_for('view_profile'))
+    
+    return render_template('profile/edit.html')
+
+
+@app.route('/uploads/<filename>')
+@login_required
+def uploaded_file(filename):
+    """Serve uploaded files (profile photos, etc.)"""
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 # =============================================================================

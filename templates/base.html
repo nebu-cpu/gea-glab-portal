@@ -535,6 +535,7 @@
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><span class="dropdown-item-text text-muted small">{{ current_user.role.replace('_', ' ').title() }}</span></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('view_profile') }}"><i class="bi bi-person me-2"></i>My Profile</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('list_notifications') }}"><i class="bi bi-bell me-2"></i>Notifications</a></li>
                         {% if current_user.role == 'glab_assessor' %}
                         <li><a class="dropdown-item" href="{{ url_for('list_cpd_logs') }}"><i class="bi bi-journal-bookmark me-2"></i>My CPD Logs</a></li>
