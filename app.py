@@ -599,6 +599,28 @@ class QualityChecklistItem(db.Model):
     checker = db.relationship('User', foreign_keys=[checked_by])
 
 
+class PhaseReview(db.Model):
+    """GEA review of each project phase"""
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    phase_number = db.Column(db.Integer, nullable=False)
+    
+    # Review status
+    status = db.Column(db.String(30), default='pending')  # pending, approved, changes_requested, rejected
+    comments = db.Column(db.Text)  # Reviewer's comments
+    
+    # Reviewer info
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    reviewed_at = db.Column(db.DateTime)
+    
+    # Relationships
+    project = db.relationship('Project', backref=db.backref('phase_reviews', lazy='dynamic'))
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+    
+    # Unique constraint - one review per project per phase
+    __table_args__ = (db.UniqueConstraint('project_id', 'phase_number', name='unique_phase_review'),)
+
+
 class Notification(db.Model):
     """User notifications for chat, announcements, reminders"""
     id = db.Column(db.Integer, primary_key=True)
@@ -1417,6 +1439,30 @@ def view_project(project_id):
         
         phase_logs = PhaseLog.query.filter_by(project_id=project_id).order_by(PhaseLog.performed_at.desc()).all()
         
+        # Get phase reviews by phase number
+        all_phase_reviews = PhaseReview.query.filter_by(project_id=project_id).all()
+        phase_reviews_by_phase = {pr.phase_number: pr for pr in all_phase_reviews}
+        
+        # Get GEA quality checklists by phase
+        all_quality_checks = QualityChecklistItem.query.filter_by(project_id=project_id).order_by(QualityChecklistItem.order).all()
+        quality_by_phase = {}
+        for item in all_quality_checks:
+            if item.phase_number not in quality_by_phase:
+                quality_by_phase[item.phase_number] = []
+            quality_by_phase[item.phase_number].append(item)
+        
+        # Get all technical experts (not GLAB-specific)
+        available_experts = User.query.filter_by(
+            role='technical_expert',
+            is_active=True
+        ).all() if current_user.is_gea() else []
+        
+        # Get all committee members
+        available_committee = User.query.filter_by(
+            role='cert_committee',
+            is_active=True
+        ).all() if current_user.is_gea() else []
+        
         return render_template('projects/view.html',
             project=project,
             checklist_by_phase=checklist_by_phase,
@@ -1425,6 +1471,10 @@ def view_project(project_id):
             messages=messages,
             available_assessors=available_assessors,
             phase_logs=phase_logs,
+            phase_reviews_by_phase=phase_reviews_by_phase,
+            quality_by_phase=quality_by_phase,
+            available_experts=available_experts,
+            available_committee=available_committee,
             phases=PHASES
         )
     except Exception as e:
@@ -1454,6 +1504,210 @@ def review_project(project_id):
         db.session.commit()
         
         flash(f'Project {action.replace("_", " ")}.', 'success')
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+@app.route('/projects/<int:project_id>/phase/<int:phase_num>/review', methods=['POST'])
+@login_required
+@gea_required
+def review_phase(project_id, phase_num):
+    """GEA review of a specific phase"""
+    project = Project.query.get_or_404(project_id)
+    action = request.form.get('action')
+    comments = request.form.get('comments', '')
+    
+    if action not in ['approved', 'changes_requested', 'rejected']:
+        flash('Invalid review action.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    # Get or create phase review
+    phase_review = PhaseReview.query.filter_by(
+        project_id=project_id,
+        phase_number=phase_num
+    ).first()
+    
+    if not phase_review:
+        phase_review = PhaseReview(
+            project_id=project_id,
+            phase_number=phase_num
+        )
+        db.session.add(phase_review)
+    
+    phase_review.status = action
+    phase_review.comments = comments
+    phase_review.reviewed_by = current_user.id
+    phase_review.reviewed_at = datetime.utcnow()
+    
+    # Log the action
+    log = PhaseLog(
+        project_id=project_id,
+        from_phase=phase_num,
+        to_phase=phase_num,
+        action=f'phase_review_{action}',
+        performed_by=current_user.id,
+        notes=comments
+    )
+    db.session.add(log)
+    
+    # Create notification for GLAB
+    glab_admins = User.query.filter_by(glab_id=project.glab_id, role='glab_admin').all()
+    for admin in glab_admins:
+        create_notification(
+            admin.id,
+            'phase_review',
+            f'Phase {phase_num} Review: {action.replace("_", " ").title()}',
+            f'GEA has {action.replace("_", " ")} Phase {phase_num} for project {project.reference_number}. {comments}',
+            'project',
+            project_id
+        )
+    
+    db.session.commit()
+    
+    status_text = action.replace('_', ' ').title()
+    flash(f'Phase {phase_num} review: {status_text}', 'success')
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+@app.route('/projects/<int:project_id>/experts/assign', methods=['POST'])
+@login_required
+@gea_required
+def assign_expert(project_id):
+    """GEA assigns technical expert to project"""
+    project = Project.query.get_or_404(project_id)
+    
+    if request.is_json:
+        expert_id = request.json.get('expert_id')
+    else:
+        expert_id = request.form.get('expert_id')
+    
+    expert = User.query.get_or_404(expert_id)
+    
+    if expert.role != 'technical_expert':
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'User is not a technical expert'})
+        flash('User is not a technical expert.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    if expert not in project.technical_experts:
+        project.technical_experts.append(expert)
+        db.session.commit()
+        
+        # Notify the expert
+        create_notification(
+            expert.id,
+            'expert_assignment',
+            f'Assigned as Technical Expert: {project.reference_number}',
+            f'You have been assigned as a technical expert for project {project.reference_number}.',
+            'project',
+            project_id
+        )
+        
+        if request.is_json:
+            return jsonify({'success': True})
+        flash(f'Technical expert {expert.full_name or expert.username} assigned.', 'success')
+    else:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Expert already assigned'})
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+@app.route('/projects/<int:project_id>/experts/remove', methods=['POST'])
+@login_required
+@gea_required
+def remove_expert(project_id):
+    """GEA removes technical expert from project"""
+    project = Project.query.get_or_404(project_id)
+    
+    if request.is_json:
+        expert_id = request.json.get('expert_id')
+    else:
+        expert_id = request.form.get('expert_id')
+    
+    expert = User.query.get_or_404(expert_id)
+    
+    if expert in project.technical_experts:
+        project.technical_experts.remove(expert)
+        db.session.commit()
+        if request.is_json:
+            return jsonify({'success': True})
+        flash('Technical expert removed.', 'success')
+    else:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Expert not assigned to this project'})
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+@app.route('/projects/<int:project_id>/committee/assign', methods=['POST'])
+@login_required
+@gea_required
+def assign_committee(project_id):
+    """GEA assigns certification committee member to project"""
+    project = Project.query.get_or_404(project_id)
+    
+    if request.is_json:
+        member_id = request.json.get('member_id')
+    else:
+        member_id = request.form.get('member_id')
+    
+    member = User.query.get_or_404(member_id)
+    
+    if member.role != 'cert_committee':
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'User is not a committee member'})
+        flash('User is not a committee member.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    if member not in project.committee_members:
+        project.committee_members.append(member)
+        db.session.commit()
+        
+        # Notify the member
+        create_notification(
+            member.id,
+            'committee_assignment',
+            f'Assigned to Certification Committee: {project.reference_number}',
+            f'You have been assigned to the certification committee for project {project.reference_number}.',
+            'project',
+            project_id
+        )
+        
+        if request.is_json:
+            return jsonify({'success': True})
+        flash(f'Committee member {member.full_name or member.username} assigned.', 'success')
+    else:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Member already assigned'})
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+@app.route('/projects/<int:project_id>/committee/remove', methods=['POST'])
+@login_required
+@gea_required
+def remove_committee(project_id):
+    """GEA removes committee member from project"""
+    project = Project.query.get_or_404(project_id)
+    
+    if request.is_json:
+        member_id = request.json.get('member_id')
+    else:
+        member_id = request.form.get('member_id')
+    
+    member = User.query.get_or_404(member_id)
+    
+    if member in project.committee_members:
+        project.committee_members.remove(member)
+        db.session.commit()
+        if request.is_json:
+            return jsonify({'success': True})
+        flash('Committee member removed.', 'success')
+    else:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Member not assigned to this project'})
     
     return redirect(url_for('view_project', project_id=project_id))
 

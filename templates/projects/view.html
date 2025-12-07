@@ -188,29 +188,53 @@
                 {% if current_user.is_gea() %}
                 <div class="card mb-4 border-primary">
                     <div class="card-header bg-primary text-white">
-                        <i class="bi bi-shield-check me-2"></i>GEA Review
+                        <i class="bi bi-shield-check me-2"></i>GEA Phase {{ phase_num }} Review
                     </div>
                     <div class="card-body">
-                        <form action="{{ url_for('review_project', project_id=project.id) }}" method="POST">
+                        <!-- GEA Quality Checklist -->
+                        <h6 class="text-uppercase text-muted small fw-bold mb-3">Quality Review Checklist</h6>
+                        {% for item_text in phases[phase_num].get('gea_review_checklist', []) %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="gea_check_{{ phase_num }}_{{ loop.index }}">
+                            <label class="form-check-label small" for="gea_check_{{ phase_num }}_{{ loop.index }}">
+                                {{ item_text }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                        
+                        <hr>
+                        
+                        <form action="{{ url_for('review_phase', project_id=project.id, phase_num=phase_num) }}" method="POST">
                             <div class="mb-3">
-                                <label class="form-label small fw-bold">Review Notes</label>
-                                <textarea name="notes" class="form-control" rows="3" placeholder="Enter review comments...">{{ project.gea_notes or '' }}</textarea>
+                                <label class="form-label small fw-bold">Review Comments</label>
+                                <textarea name="comments" class="form-control" rows="3" placeholder="Enter review comments, feedback, or reasons for decision...">{% if phase_reviews_by_phase.get(phase_num) %}{{ phase_reviews_by_phase[phase_num].comments or '' }}{% endif %}</textarea>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label small fw-bold">Decision</label>
+                                <label class="form-label small fw-bold">Phase Decision</label>
                                 <div class="d-grid gap-2">
-                                    <button type="submit" name="action" value="approved" class="btn btn-success">
+                                    <button type="submit" name="action" value="approved" class="btn btn-success btn-sm">
                                         <i class="bi bi-check-circle me-2"></i>Approve Phase
                                     </button>
-                                    <button type="submit" name="action" value="changes_requested" class="btn btn-warning">
+                                    <button type="submit" name="action" value="changes_requested" class="btn btn-warning btn-sm">
                                         <i class="bi bi-pencil me-2"></i>Request Changes
                                     </button>
-                                    <button type="submit" name="action" value="rejected" class="btn btn-danger">
-                                        <i class="bi bi-x-circle me-2"></i>Reject
+                                    <button type="submit" name="action" value="rejected" class="btn btn-danger btn-sm">
+                                        <i class="bi bi-x-circle me-2"></i>Reject Phase
                                     </button>
                                 </div>
                             </div>
                         </form>
+                        
+                        <!-- Previous Review Status -->
+                        {% set prev_review = phase_reviews_by_phase.get(phase_num) %}
+                        {% if prev_review and prev_review.reviewed_at %}
+                        <hr>
+                        <div class="small text-muted">
+                            <strong>Last Review:</strong> {{ prev_review.status.replace('_', ' ').title() }}<br>
+                            <strong>By:</strong> {{ prev_review.reviewer.full_name or prev_review.reviewer.username if prev_review.reviewer else 'Unknown' }}<br>
+                            <strong>Date:</strong> {{ prev_review.reviewed_at.strftime('%b %d, %Y %H:%M') }}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -337,7 +361,80 @@
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
+    
+    <!-- Technical Experts -->
+    <div class="col-lg-4 mt-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-mortarboard me-2"></i>Technical Experts
+            </div>
+            <div class="card-body">
+                {% if project.technical_experts %}
+                {% for expert in project.technical_experts %}
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="user-avatar" style="width: 32px; height: 32px; font-size: 0.8rem; background: #06b6d4;">{{ expert.username[0].upper() }}</div>
+                        <div>
+                            <div class="small fw-medium">{{ expert.full_name or expert.username }}</div>
+                            <div class="small text-muted">{{ expert.expert_domains or 'General' }}</div>
+                        </div>
+                    </div>
+                    {% if current_user.is_gea() %}
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeExpert({{ expert.id }})">
+                        <i class="bi bi-x"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No technical experts assigned.</p>
+                {% endif %}
+                {% if current_user.is_gea() %}
+                <button class="btn btn-sm btn-gea-outline mt-2" data-bs-toggle="modal" data-bs-target="#manageExpertsModal">
+                    <i class="bi bi-person-plus me-1"></i>Assign Expert
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Certification Committee -->
+    <div class="col-lg-4 mt-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-people me-2"></i>Certification Committee
+            </div>
+            <div class="card-body">
+                {% if project.committee_members %}
+                {% for member in project.committee_members %}
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="user-avatar" style="width: 32px; height: 32px; font-size: 0.8rem; background: #f59e0b;">{{ member.username[0].upper() }}</div>
+                        <div>
+                            <div class="small fw-medium">{{ member.full_name or member.username }}</div>
+                            <div class="small text-muted">Committee Member</div>
+                        </div>
+                    </div>
+                    {% if current_user.is_gea() %}
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeCommittee({{ member.id }})">
+                        <i class="bi bi-x"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No committee assigned yet.</p>
+                {% endif %}
+                {% if current_user.is_gea() %}
+                <button class="btn btn-sm btn-gea-outline mt-2" data-bs-toggle="modal" data-bs-target="#manageCommitteeModal">
+                    <i class="bi bi-person-plus me-1"></i>Assign Committee
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 mt-4">
         <div class="card">
             <div class="card-header">Financial Summary</div>
             <div class="card-body">
@@ -424,6 +521,72 @@ function removeAssessor(assessorId) {
         }
     });
 }
+
+function assignExpert(expertId) {
+    fetch(`/projects/{{ project.id }}/experts/assign`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({expert_id: expertId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to assign expert');
+        }
+    });
+}
+
+function removeExpert(expertId) {
+    if (!confirm('Remove this technical expert from the project?')) return;
+    fetch(`/projects/{{ project.id }}/experts/remove`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({expert_id: expertId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to remove expert');
+        }
+    });
+}
+
+function assignCommittee(memberId) {
+    fetch(`/projects/{{ project.id }}/committee/assign`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({member_id: memberId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to assign committee member');
+        }
+    });
+}
+
+function removeCommittee(memberId) {
+    if (!confirm('Remove this committee member from the project?')) return;
+    fetch(`/projects/{{ project.id }}/committee/remove`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({member_id: memberId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to remove committee member');
+        }
+    });
+}
 </script>
 
 <!-- Manage Assessors Modal -->
@@ -471,6 +634,110 @@ function removeAssessor(assessorId) {
                     {% endif %}
                     {% else %}
                     <p class="text-muted">No available assessors. Contact GEA to assign assessors to your GLAB.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Manage Technical Experts Modal -->
+{% if current_user.is_gea() %}
+<div class="modal fade" id="manageExpertsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-mortarboard me-2"></i>Assign Technical Expert</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="text-muted mb-3">Currently Assigned</h6>
+                {% if project.technical_experts %}
+                <div class="list-group mb-4">
+                    {% for expert in project.technical_experts %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ expert.full_name or expert.username }}</strong>
+                            <br><small class="text-muted">{{ expert.expert_domains or 'General Expertise' }}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeExpert({{ expert.id }})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-4">No technical experts assigned yet.</p>
+                {% endif %}
+                
+                <h6 class="text-muted mb-3">Available Technical Experts</h6>
+                <div class="list-group">
+                    {% for expert in available_experts %}
+                    {% if expert not in project.technical_experts %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ expert.full_name or expert.username }}</strong>
+                            <br><small class="text-muted">{{ expert.expert_domains or 'General Expertise' }}</small>
+                        </div>
+                        <button class="btn btn-sm btn-gea-outline" onclick="assignExpert({{ expert.id }})">
+                            <i class="bi bi-plus"></i> Assign
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted">No technical experts available. Create technical expert user accounts first.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Certification Committee Modal -->
+<div class="modal fade" id="manageCommitteeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-people me-2"></i>Assign Certification Committee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6 class="text-muted mb-3">Current Committee Members</h6>
+                {% if project.committee_members %}
+                <div class="list-group mb-4">
+                    {% for member in project.committee_members %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ member.full_name or member.username }}</strong>
+                            <br><small class="text-muted">Committee Member</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeCommittee({{ member.id }})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-4">No committee members assigned yet.</p>
+                {% endif %}
+                
+                <h6 class="text-muted mb-3">Available Committee Members</h6>
+                <div class="list-group">
+                    {% for member in available_committee %}
+                    {% if member not in project.committee_members %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ member.full_name or member.username }}</strong>
+                            <br><small class="text-muted">Certification Committee</small>
+                        </div>
+                        <button class="btn btn-sm btn-gea-outline" onclick="assignCommittee({{ member.id }})">
+                            <i class="bi bi-plus"></i> Assign
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted">No committee members available. Create committee member user accounts first.</p>
                     {% endfor %}
                 </div>
             </div>
