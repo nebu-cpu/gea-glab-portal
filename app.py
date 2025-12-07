@@ -511,76 +511,83 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    if current_user.is_gea():
-        # GEA Dashboard
-        glabs = GLAB.query.all()
-        pending_reviews = Project.query.filter_by(gea_status='pending').count()
-        pending_documents = Document.query.filter_by(status='pending').count()
-        projects = Project.query.order_by(Project.created_at.desc()).limit(10).all()
-        unread_messages = ChatMessage.query.filter_by(is_read=False).count()
+    try:
+        if current_user.is_gea():
+            # GEA Dashboard
+            glabs = GLAB.query.all()
+            pending_reviews = Project.query.filter_by(gea_status='pending').count()
+            pending_documents = Document.query.filter_by(status='pending').count()
+            projects = Project.query.order_by(Project.created_at.desc()).limit(10).all()
+            unread_messages = ChatMessage.query.filter_by(is_read=False).count()
+            
+            # Calculate outstanding GEA fees
+            total_gea_fees_due = db.session.query(db.func.sum(Project.gea_fee)).filter(
+                Project.gea_fee_remitted == False,
+                Project.gea_fee > 0
+            ).scalar() or 0
+            
+            return render_template('dashboard_gea.html',
+                glabs=glabs,
+                pending_reviews=pending_reviews,
+                pending_documents=pending_documents,
+                projects=projects,
+                unread_messages=unread_messages,
+                total_gea_fees_due=total_gea_fees_due,
+                phases=PHASES
+            )
         
-        # Calculate outstanding GEA fees
-        total_gea_fees_due = db.session.query(db.func.sum(Project.gea_fee)).filter(
-            Project.gea_fee_remitted == False,
-            Project.gea_fee > 0
-        ).scalar() or 0
+        elif current_user.role == 'glab_admin':
+            # GLAB Admin Dashboard
+            glab = current_user.glab
+            if not glab:
+                flash('Your account is not assigned to a GLAB. Contact GEA admin.', 'error')
+                return redirect(url_for('logout'))
+            
+            clients = list(glab.clients.all())
+            projects = list(glab.projects.order_by(Project.created_at.desc()).all())
+            unread_messages = ChatMessage.query.join(Project).filter(
+                Project.glab_id == glab.id,
+                ChatMessage.is_read == False,
+                ChatMessage.sender_id != current_user.id
+            ).count()
+            
+            # Calculate phase counts
+            phase_counts = {
+                'enrollment': len([p for p in projects if p.current_phase == 1]),
+                'safeguards': len([p for p in projects if p.current_phase == 2]),
+                'preliminary': len([p for p in projects if p.current_phase == 3]),
+                'engagement': len([p for p in projects if p.current_phase == 4]),
+                'assessment': len([p for p in projects if p.current_phase == 5]),
+                'reporting': len([p for p in projects if p.current_phase == 6]),
+                'certification': len([p for p in projects if p.current_phase == 7]),
+                'post_certification': len([p for p in projects if p.current_phase == 8]),
+            }
+            
+            return render_template('dashboard_glab.html',
+                glab=glab,
+                clients=clients,
+                projects=projects,
+                unread_messages=unread_messages,
+                phase_counts=phase_counts,
+                phases=PHASES
+            )
         
-        return render_template('dashboard_gea.html',
-            glabs=glabs,
-            pending_reviews=pending_reviews,
-            pending_documents=pending_documents,
-            projects=projects,
-            unread_messages=unread_messages,
-            total_gea_fees_due=total_gea_fees_due,
-            phases=PHASES
-        )
+        elif current_user.role == 'glab_assessor':
+            # Assessor Dashboard - only sees assigned projects
+            projects = list(current_user.assigned_projects)
+            
+            return render_template('dashboard_assessor.html',
+                projects=projects,
+                phases=PHASES
+            )
+        
+        return redirect(url_for('login'))
     
-    elif current_user.role == 'glab_admin':
-        # GLAB Admin Dashboard
-        glab = current_user.glab
-        if not glab:
-            flash('Your account is not assigned to a GLAB. Contact GEA admin.', 'error')
-            return redirect(url_for('logout'))
-        
-        clients = glab.clients.all()
-        projects = list(glab.projects.order_by(Project.created_at.desc()).all())
-        unread_messages = ChatMessage.query.join(Project).filter(
-            Project.glab_id == glab.id,
-            ChatMessage.is_read == False,
-            ChatMessage.sender_id != current_user.id
-        ).count()
-        
-        # Calculate phase counts
-        phase_counts = {
-            'enrollment': len([p for p in projects if p.current_phase == 1]),
-            'safeguards': len([p for p in projects if p.current_phase == 2]),
-            'preliminary': len([p for p in projects if p.current_phase == 3]),
-            'engagement': len([p for p in projects if p.current_phase == 4]),
-            'assessment': len([p for p in projects if p.current_phase == 5]),
-            'reporting': len([p for p in projects if p.current_phase == 6]),
-            'certification': len([p for p in projects if p.current_phase == 7]),
-            'post_certification': len([p for p in projects if p.current_phase == 8]),
-        }
-        
-        return render_template('dashboard_glab.html',
-            glab=glab,
-            clients=clients,
-            projects=projects,
-            unread_messages=unread_messages,
-            phase_counts=phase_counts,
-            phases=PHASES
-        )
-    
-    elif current_user.role == 'glab_assessor':
-        # Assessor Dashboard - only sees assigned projects
-        projects = current_user.assigned_projects
-        
-        return render_template('dashboard_assessor.html',
-            projects=projects,
-            phases=PHASES
-        )
-    
-    return redirect(url_for('login'))
+    except Exception as e:
+        app.logger.error(f"Dashboard error: {str(e)}")
+        db.session.rollback()
+        flash('An error occurred loading the dashboard.', 'error')
+        return render_template('errors/500.html'), 500
 
 
 # =============================================================================
@@ -690,16 +697,22 @@ def create_glab():
 @app.route('/glabs/<int:glab_id>')
 @login_required
 def view_glab(glab_id):
-    glab = GLAB.query.get_or_404(glab_id)
-    if not current_user.is_gea() and current_user.glab_id != glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    projects = glab.projects.order_by(Project.created_at.desc()).all()
-    clients = glab.clients.all()
-    assessors = User.query.filter_by(glab_id=glab_id, role='glab_assessor').all()
-    
-    return render_template('glabs/view.html', glab=glab, projects=projects, clients=clients, assessors=assessors)
+    try:
+        glab = GLAB.query.get_or_404(glab_id)
+        if not current_user.is_gea() and current_user.glab_id != glab_id:
+            flash('Access denied.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        projects = list(glab.projects.order_by(Project.created_at.desc()).all())
+        clients = list(glab.clients.all())
+        assessors = User.query.filter_by(glab_id=glab_id, role='glab_assessor').all()
+        
+        return render_template('glabs/view.html', glab=glab, projects=projects, clients=clients, assessors=assessors, phases=PHASES)
+    except Exception as e:
+        app.logger.error(f"View GLAB error for glab {glab_id}: {str(e)}")
+        db.session.rollback()
+        flash('An error occurred loading GLAB details.', 'error')
+        return redirect(url_for('list_glabs'))
 
 
 # =============================================================================
@@ -709,12 +722,19 @@ def view_glab(glab_id):
 @app.route('/clients')
 @login_required
 def list_clients():
-    if current_user.is_gea():
-        clients = Client.query.order_by(Client.created_at.desc()).all()
-    else:
-        clients = Client.query.filter_by(glab_id=current_user.glab_id).order_by(Client.created_at.desc()).all()
-    
-    return render_template('clients/list.html', clients=clients)
+    try:
+        if current_user.is_gea():
+            clients = Client.query.order_by(Client.created_at.desc()).all()
+        elif current_user.glab_id:
+            clients = Client.query.filter_by(glab_id=current_user.glab_id).order_by(Client.created_at.desc()).all()
+        else:
+            clients = []
+        
+        return render_template('clients/list.html', clients=clients)
+    except Exception as e:
+        app.logger.error(f"List clients error: {str(e)}")
+        flash('An error occurred.', 'error')
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/clients/create', methods=['GET', 'POST'])
@@ -750,13 +770,19 @@ def create_client():
 @app.route('/clients/<int:client_id>')
 @login_required
 def view_client(client_id):
-    client = Client.query.get_or_404(client_id)
-    if not current_user.is_gea() and client.glab_id != current_user.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    projects = client.projects.all()
-    return render_template('clients/view.html', client=client, projects=projects, phases=PHASES)
+    try:
+        client = Client.query.get_or_404(client_id)
+        if not current_user.is_gea() and client.glab_id != current_user.glab_id:
+            flash('Access denied.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        projects = list(client.projects.all())
+        return render_template('clients/view.html', client=client, projects=projects, phases=PHASES)
+    except Exception as e:
+        app.logger.error(f"View client error for client {client_id}: {str(e)}")
+        db.session.rollback()
+        flash('An error occurred loading client details.', 'error')
+        return redirect(url_for('list_clients'))
 
 
 # =============================================================================
@@ -766,14 +792,21 @@ def view_client(client_id):
 @app.route('/projects')
 @login_required
 def list_projects():
-    if current_user.is_gea():
-        projects = Project.query.order_by(Project.created_at.desc()).all()
-    elif current_user.role == 'glab_assessor':
-        projects = current_user.assigned_projects
-    else:
-        projects = Project.query.filter_by(glab_id=current_user.glab_id).order_by(Project.created_at.desc()).all()
-    
-    return render_template('projects/list.html', projects=projects, phases=PHASES)
+    try:
+        if current_user.is_gea():
+            projects = Project.query.order_by(Project.created_at.desc()).all()
+        elif current_user.role == 'glab_assessor':
+            projects = list(current_user.assigned_projects)
+        elif current_user.glab_id:
+            projects = Project.query.filter_by(glab_id=current_user.glab_id).order_by(Project.created_at.desc()).all()
+        else:
+            projects = []
+        
+        return render_template('projects/list.html', projects=projects, phases=PHASES)
+    except Exception as e:
+        app.logger.error(f"List projects error: {str(e)}")
+        flash('An error occurred.', 'error')
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/projects/create', methods=['GET', 'POST'])
@@ -833,65 +866,73 @@ def create_project():
 @app.route('/projects/<int:project_id>')
 @login_required
 def view_project(project_id):
-    project = Project.query.get_or_404(project_id)
-    
-    # Access control
-    if current_user.role == 'glab_assessor':
-        if project not in current_user.assigned_projects:
-            flash('Access denied. You are not assigned to this project.', 'error')
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        # Access control
+        if current_user.role == 'glab_assessor':
+            if project not in current_user.assigned_projects:
+                flash('Access denied. You are not assigned to this project.', 'error')
+                return redirect(url_for('dashboard'))
+        elif not current_user.is_gea() and project.glab_id != current_user.glab_id:
+            flash('Access denied.', 'error')
             return redirect(url_for('dashboard'))
-    elif not current_user.is_gea() and project.glab_id != current_user.glab_id:
-        flash('Access denied.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    # Get all checklists organized by phase
-    all_checklists = ChecklistItem.query.filter_by(project_id=project_id).order_by(ChecklistItem.order).all()
-    checklist_by_phase = {}
-    for item in all_checklists:
-        if item.phase_number not in checklist_by_phase:
-            checklist_by_phase[item.phase_number] = []
-        checklist_by_phase[item.phase_number].append(item)
-    
-    # Get all documents organized by phase and document_key
-    all_documents = Document.query.filter_by(project_id=project_id).all()
-    documents_by_phase = {}
-    for doc in all_documents:
-        if doc.phase_number not in documents_by_phase:
-            documents_by_phase[doc.phase_number] = {}
-        documents_by_phase[doc.phase_number][doc.document_key] = doc
-    
-    # Get all templates organized by phase and document_key
-    all_templates = PhaseTemplate.query.filter_by(is_active=True).all()
-    templates_by_phase = {}
-    for template in all_templates:
-        if template.phase_number not in templates_by_phase:
-            templates_by_phase[template.phase_number] = {}
-        templates_by_phase[template.phase_number][template.document_key] = template
-    
-    # Get chat messages
-    messages = ChatMessage.query.filter_by(project_id=project_id).order_by(ChatMessage.sent_at.desc()).limit(50).all()
-    
-    # Get available assessors for assignment (GEA/GLAB admin only)
-    available_assessors = []
-    if current_user.is_gea() or current_user.role == 'glab_admin':
-        available_assessors = User.query.filter_by(
-            glab_id=project.glab_id,
-            role='glab_assessor',
-            is_active=True
-        ).all()
-    
-    phase_logs = PhaseLog.query.filter_by(project_id=project_id).order_by(PhaseLog.performed_at.desc()).all()
-    
-    return render_template('projects/view.html',
-        project=project,
-        checklist_by_phase=checklist_by_phase,
-        documents_by_phase=documents_by_phase,
-        templates_by_phase=templates_by_phase,
-        messages=messages,
-        available_assessors=available_assessors,
-        phase_logs=phase_logs,
-        phases=PHASES
-    )
+        
+        # Get all checklists organized by phase
+        all_checklists = ChecklistItem.query.filter_by(project_id=project_id).order_by(ChecklistItem.order).all()
+        checklist_by_phase = {}
+        for item in all_checklists:
+            if item.phase_number not in checklist_by_phase:
+                checklist_by_phase[item.phase_number] = []
+            checklist_by_phase[item.phase_number].append(item)
+        
+        # Get all documents organized by phase and document_key
+        all_documents = Document.query.filter_by(project_id=project_id).all()
+        documents_by_phase = {}
+        for doc in all_documents:
+            if doc.phase_number not in documents_by_phase:
+                documents_by_phase[doc.phase_number] = {}
+            if doc.document_key:
+                documents_by_phase[doc.phase_number][doc.document_key] = doc
+        
+        # Get all templates organized by phase and document_key
+        all_templates = PhaseTemplate.query.filter_by(is_active=True).all()
+        templates_by_phase = {}
+        for template in all_templates:
+            if template.phase_number not in templates_by_phase:
+                templates_by_phase[template.phase_number] = {}
+            if template.document_key:
+                templates_by_phase[template.phase_number][template.document_key] = template
+        
+        # Get chat messages
+        messages = ChatMessage.query.filter_by(project_id=project_id).order_by(ChatMessage.sent_at.desc()).limit(50).all()
+        
+        # Get available assessors for assignment (GEA/GLAB admin only)
+        available_assessors = []
+        if current_user.is_gea() or current_user.role == 'glab_admin':
+            available_assessors = User.query.filter_by(
+                glab_id=project.glab_id,
+                role='glab_assessor',
+                is_active=True
+            ).all()
+        
+        phase_logs = PhaseLog.query.filter_by(project_id=project_id).order_by(PhaseLog.performed_at.desc()).all()
+        
+        return render_template('projects/view.html',
+            project=project,
+            checklist_by_phase=checklist_by_phase,
+            documents_by_phase=documents_by_phase,
+            templates_by_phase=templates_by_phase,
+            messages=messages,
+            available_assessors=available_assessors,
+            phase_logs=phase_logs,
+            phases=PHASES
+        )
+    except Exception as e:
+        app.logger.error(f"View project error for project {project_id}: {str(e)}")
+        db.session.rollback()
+        flash('An error occurred loading project details.', 'error')
+        return redirect(url_for('list_projects'))
 
 
 # =============================================================================
