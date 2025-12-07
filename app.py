@@ -181,17 +181,41 @@ PHASES = {
 # =============================================================================
 
 class User(UserMixin, db.Model):
-    """User model - GEA admins, GEA staff, GLAB admins, GLAB assessors"""
+    """User model - supports all user types"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     full_name = db.Column(db.String(120))
-    role = db.Column(db.String(20), nullable=False)  # 'gea_admin', 'gea_staff', 'glab_admin', 'glab_assessor'
+    
+    # Profile fields
+    profile_photo = db.Column(db.String(255))  # Stored filename
+    phone = db.Column(db.String(50))
+    bio = db.Column(db.Text)
+    
+    # Role & Organization
+    role = db.Column(db.String(30), nullable=False)  # gea_admin, gea_staff, glab_admin, glab_assessor, technical_expert, cert_committee, client_user
+    staff_function = db.Column(db.String(30))  # For gea_staff: review_team, quality_team, operations, finance, registry
     glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=True)
+    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=True)  # For client_user
+    
+    # Assessor-specific fields
+    assessor_id = db.Column(db.String(50), unique=True, nullable=True)  # Certificate ID
+    certification_date = db.Column(db.Date)
+    recertification_due = db.Column(db.Date)  # certification_date + 3 years
+    assessor_specializations = db.Column(db.Text)  # JSON array of domains
+    
+    # Technical Expert fields
+    expert_domains = db.Column(db.Text)  # JSON array of expertise areas
+    
+    # Status & Tracking
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
+    last_login = db.Column(db.DateTime)
+    
+    # Notification preferences
+    email_notifications = db.Column(db.Boolean, default=True)
     
     # Relationships
     glab = db.relationship('GLAB', backref='users', foreign_keys=[glab_id])
@@ -207,10 +231,26 @@ class User(UserMixin, db.Model):
     
     def is_gea_admin(self):
         return self.role == 'gea_admin'
+    
+    def can_review(self):
+        """Can this user review documents/phases?"""
+        return self.role in ['gea_admin', 'gea_staff']
+    
+    def can_edit_operational_checklist(self):
+        """Can this user complete operational checklist items?"""
+        return self.role in ['glab_admin', 'glab_assessor']
+    
+    def can_edit_quality_checklist(self):
+        """Can this user complete quality checklist items?"""
+        return self.role in ['gea_admin', 'gea_staff']
+    
+    def unread_notification_count(self):
+        """Count unread notifications"""
+        return Notification.query.filter_by(user_id=self.id, is_read=False).count()
 
 
 class GLAB(db.Model):
-    """Licensed Assessment Body"""
+    """Licensed Assessment Body with license tracking"""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     license_number = db.Column(db.String(50), unique=True, nullable=False)
@@ -218,6 +258,15 @@ class GLAB(db.Model):
     address = db.Column(db.Text)
     contact_email = db.Column(db.String(120), nullable=False)
     contact_phone = db.Column(db.String(50))
+    
+    # License & Payment tracking
+    license_type = db.Column(db.String(20), default='annual')  # 'annual' or 'triennial'
+    license_start_date = db.Column(db.Date)
+    license_expiry_date = db.Column(db.Date)
+    last_payment_date = db.Column(db.Date)
+    next_payment_due = db.Column(db.Date)  # For reminder scheduling
+    
+    # Status
     status = db.Column(db.String(20), default='active')  # active, suspended, terminated
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -225,6 +274,14 @@ class GLAB(db.Model):
     # Relationships
     clients = db.relationship('Client', backref='glab', lazy='dynamic')
     projects = db.relationship('Project', backref='glab', lazy='dynamic')
+    
+    def calculate_next_payment_due(self):
+        """Calculate next payment due date based on license type"""
+        if self.last_payment_date:
+            if self.license_type == 'annual':
+                self.next_payment_due = self.last_payment_date + timedelta(days=365)
+            else:  # triennial
+                self.next_payment_due = self.last_payment_date + timedelta(days=365*3)
 
 
 class Client(db.Model):
@@ -247,19 +304,30 @@ class Client(db.Model):
     projects = db.relationship('Project', backref='client', lazy='dynamic')
 
 
-# Association table for assessors assigned to projects
+# Association tables for project assignments
 project_assessors = db.Table('project_assessors',
+    db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
+)
+
+project_technical_experts = db.Table('project_technical_experts',
+    db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
+)
+
+project_committee_members = db.Table('project_committee_members',
     db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
 )
 
 
 class Project(db.Model):
-    """Certification project"""
+    """Certification project with enhanced tracking"""
     id = db.Column(db.Integer, primary_key=True)
     reference_number = db.Column(db.String(50), unique=True, nullable=False)
     glab_id = db.Column(db.Integer, db.ForeignKey('glab.id'), nullable=False)
     client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
+    lead_assessor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     
     # Assessment details
     assessment_type = db.Column(db.String(50), default='initial')  # initial, surveillance, recertification
@@ -289,9 +357,18 @@ class Project(db.Model):
     # Relationships
     documents = db.relationship('Document', backref='project', lazy='dynamic')
     checklists = db.relationship('ChecklistItem', backref='project', lazy='dynamic')
+    quality_checklists = db.relationship('QualityChecklistItem', backref='project', lazy='dynamic')
     phase_logs = db.relationship('PhaseLog', backref='project', lazy='dynamic')
     messages = db.relationship('ChatMessage', backref='project', lazy='dynamic')
-    assessors = db.relationship('User', secondary=project_assessors, backref='assigned_projects')
+    
+    assessors = db.relationship('User', secondary=project_assessors, 
+        backref=db.backref('assigned_projects', lazy='dynamic'))
+    technical_experts = db.relationship('User', secondary=project_technical_experts,
+        backref=db.backref('expert_projects', lazy='dynamic'))
+    committee_members = db.relationship('User', secondary=project_committee_members,
+        backref=db.backref('committee_projects', lazy='dynamic'))
+    
+    lead_assessor = db.relationship('User', foreign_keys=[lead_assessor_id])
 
 
 class Document(db.Model):
@@ -390,6 +467,95 @@ class Announcement(db.Model):
     target_glab = db.relationship('GLAB', foreign_keys=[target_glab_id])
 
 
+class QualityChecklistItem(db.Model):
+    """Quality/Review checklist items for GEA staff"""
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    phase_number = db.Column(db.Integer, nullable=False)
+    item_text = db.Column(db.String(500), nullable=False)
+    check_type = db.Column(db.String(30))  # 'received', 'verified', 'approved'
+    
+    is_checked = db.Column(db.Boolean, default=False)
+    checked_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    checked_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    order = db.Column(db.Integer, default=0)
+    
+    # Link to document being reviewed
+    document_id = db.Column(db.Integer, db.ForeignKey('document.id'))
+    
+    # Relationships
+    checker = db.relationship('User', foreign_keys=[checked_by])
+
+
+class Notification(db.Model):
+    """User notifications for chat, announcements, reminders"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    notification_type = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text)
+    
+    link_type = db.Column(db.String(30))  # 'project', 'announcement', 'chat', 'cpd'
+    link_id = db.Column(db.Integer)
+    
+    is_read = db.Column(db.Boolean, default=False)
+    read_at = db.Column(db.DateTime)
+    
+    email_sent = db.Column(db.Boolean, default=False)
+    email_sent_at = db.Column(db.DateTime)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class CPDLog(db.Model):
+    """Continuing Professional Development logs for assessors"""
+    id = db.Column(db.Integer, primary_key=True)
+    assessor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    activity_type = db.Column(db.String(50), nullable=False)  # training, workshop, seminar, self-study, etc.
+    activity_title = db.Column(db.String(200), nullable=False)
+    activity_date = db.Column(db.Date, nullable=False)
+    hours = db.Column(db.Float, nullable=False)
+    description = db.Column(db.Text)
+    
+    # Evidence document
+    evidence_filename = db.Column(db.String(255))
+    evidence_stored_filename = db.Column(db.String(255))
+    
+    # Review
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    reviewed_at = db.Column(db.DateTime)
+    review_notes = db.Column(db.Text)
+    
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    assessor = db.relationship('User', foreign_keys=[assessor_id], backref='cpd_logs')
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+
+
+class ScheduledReminder(db.Model):
+    """Tracks scheduled reminders to avoid duplicates"""
+    id = db.Column(db.Integer, primary_key=True)
+    
+    reminder_type = db.Column(db.String(50), nullable=False)  # license_payment, cpd_reminder, recertification
+    target_type = db.Column(db.String(30), nullable=False)  # 'glab', 'assessor'
+    target_id = db.Column(db.Integer, nullable=False)
+    
+    due_date = db.Column(db.Date, nullable=False)
+    days_before = db.Column(db.Integer, nullable=False)  # 60, 30, 15, 5
+    
+    sent = db.Column(db.Boolean, default=False)
+    sent_at = db.Column(db.DateTime)
+    
+    __table_args__ = (
+        db.UniqueConstraint('reminder_type', 'target_type', 'target_id', 'days_before'),
+    )
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -403,22 +569,46 @@ def load_user(user_id):
 def inject_global_vars():
     """Inject global variables into all templates"""
     if current_user.is_authenticated:
+        # Count unread notifications
+        unread_notifications = current_user.unread_notification_count()
+        
         # Count unread announcements for this user
         if current_user.is_gea():
-            # GEA sees all announcements (they don't need notification)
             unread_announcements = 0
         else:
-            # GLAB users see announcements for their GLAB or all GLABs
             unread_announcements = Announcement.query.filter(
                 db.or_(
                     Announcement.target_glab_id == None,
                     Announcement.target_glab_id == current_user.glab_id
                 ),
                 Announcement.is_active == True,
-                Announcement.created_at >= current_user.created_at  # Only announcements after user was created
+                Announcement.created_at >= current_user.created_at
             ).count()
-        return {'unread_announcements': unread_announcements}
-    return {'unread_announcements': 0}
+        
+        # Count unread chat messages
+        if current_user.is_gea():
+            unread_messages = ChatMessage.query.filter_by(is_read=False).filter(
+                ChatMessage.sender_id != current_user.id
+            ).count()
+        elif current_user.glab_id:
+            unread_messages = ChatMessage.query.join(Project).filter(
+                Project.glab_id == current_user.glab_id,
+                ChatMessage.is_read == False,
+                ChatMessage.sender_id != current_user.id
+            ).count()
+        else:
+            unread_messages = 0
+        
+        return {
+            'unread_notifications': unread_notifications,
+            'unread_announcements': unread_announcements,
+            'unread_messages': unread_messages
+        }
+    return {
+        'unread_notifications': 0,
+        'unread_announcements': 0,
+        'unread_messages': 0
+    }
 
 
 def allowed_file(filename):
@@ -471,6 +661,50 @@ def create_default_checklists(project):
             )
             db.session.add(checklist)
     db.session.commit()
+
+
+def create_notification(user_id, notification_type, title, message, link_type=None, link_id=None):
+    """Create a notification for a user"""
+    notification = Notification(
+        user_id=user_id,
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        link_type=link_type,
+        link_id=link_id
+    )
+    db.session.add(notification)
+    db.session.commit()
+    return notification
+
+
+def notify_project_participants(project, notification_type, title, message, exclude_user_id=None):
+    """Notify all participants of a project"""
+    user_ids = set()
+    
+    # GLAB users
+    for user in User.query.filter_by(glab_id=project.glab_id, is_active=True).all():
+        user_ids.add(user.id)
+    
+    # Assessors
+    for assessor in project.assessors:
+        user_ids.add(assessor.id)
+    
+    # Technical experts
+    for expert in project.technical_experts:
+        user_ids.add(expert.id)
+    
+    # GEA staff
+    for user in User.query.filter(User.role.in_(['gea_admin', 'gea_staff']), User.is_active == True).all():
+        user_ids.add(user.id)
+    
+    # Remove excluded user
+    if exclude_user_id:
+        user_ids.discard(exclude_user_id)
+    
+    # Create notifications
+    for user_id in user_ids:
+        create_notification(user_id, notification_type, title, message, 'project', project.id)
 
 
 # =============================================================================
@@ -1392,6 +1626,236 @@ def delete_announcement(announcement_id):
     db.session.commit()
     flash('Announcement deleted.', 'success')
     return redirect(url_for('list_announcements'))
+
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+
+@app.route('/notifications')
+@login_required
+def list_notifications():
+    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(
+        Notification.created_at.desc()
+    ).limit(50).all()
+    return render_template('notifications/list.html', notifications=notifications)
+
+
+@app.route('/api/notifications/unread-count')
+@login_required
+def get_unread_count():
+    return jsonify({'count': current_user.unread_notification_count()})
+
+
+@app.route('/api/notifications/<int:notification_id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(notification_id):
+    notification = Notification.query.get_or_404(notification_id)
+    if notification.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    
+    notification.is_read = True
+    notification.read_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/notifications/mark-all-read', methods=['POST'])
+@login_required
+def mark_all_notifications_read():
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({
+        'is_read': True,
+        'read_at': datetime.utcnow()
+    })
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+# =============================================================================
+# CPD LOGS (Assessor Continuing Professional Development)
+# =============================================================================
+
+@app.route('/cpd')
+@login_required
+def list_cpd_logs():
+    if current_user.role == 'glab_assessor':
+        # Assessor sees own CPD logs
+        cpd_logs = CPDLog.query.filter_by(assessor_id=current_user.id).order_by(CPDLog.activity_date.desc()).all()
+        total_hours = sum(log.hours for log in cpd_logs if log.status == 'approved')
+    elif current_user.is_gea():
+        # GEA sees all CPD logs (for review)
+        cpd_logs = CPDLog.query.order_by(CPDLog.submitted_at.desc()).all()
+        total_hours = 0
+    else:
+        flash('Access denied.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('cpd/list.html', cpd_logs=cpd_logs, total_hours=total_hours)
+
+
+@app.route('/cpd/create', methods=['GET', 'POST'])
+@login_required
+def create_cpd_log():
+    if current_user.role != 'glab_assessor':
+        flash('Only assessors can submit CPD logs.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        cpd_log = CPDLog(
+            assessor_id=current_user.id,
+            activity_type=request.form.get('activity_type'),
+            activity_title=request.form.get('activity_title'),
+            activity_date=datetime.strptime(request.form.get('activity_date'), '%Y-%m-%d').date(),
+            hours=float(request.form.get('hours')),
+            description=request.form.get('description')
+        )
+        
+        # Handle evidence upload
+        if 'evidence' in request.files:
+            file = request.files['evidence']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                stored_filename = f"cpd_{uuid.uuid4()}_{filename}"
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_filename)
+                file.save(file_path)
+                cpd_log.evidence_filename = filename
+                cpd_log.evidence_stored_filename = stored_filename
+        
+        db.session.add(cpd_log)
+        db.session.commit()
+        
+        flash('CPD activity logged successfully.', 'success')
+        return redirect(url_for('list_cpd_logs'))
+    
+    return render_template('cpd/form.html')
+
+
+@app.route('/cpd/<int:cpd_id>/review', methods=['POST'])
+@login_required
+@gea_required
+def review_cpd_log(cpd_id):
+    cpd_log = CPDLog.query.get_or_404(cpd_id)
+    action = request.form.get('action')
+    notes = request.form.get('notes', '')
+    
+    if action in ['approved', 'rejected']:
+        cpd_log.status = action
+        cpd_log.review_notes = notes
+        cpd_log.reviewed_by = current_user.id
+        cpd_log.reviewed_at = datetime.utcnow()
+        db.session.commit()
+        
+        # Notify assessor
+        create_notification(
+            cpd_log.assessor_id,
+            'cpd_review',
+            f'CPD Log {action.title()}',
+            f'Your CPD activity "{cpd_log.activity_title}" has been {action}.',
+            'cpd',
+            cpd_log.id
+        )
+        
+        flash(f'CPD log {action}.', 'success')
+    
+    return redirect(url_for('list_cpd_logs'))
+
+
+# =============================================================================
+# TECHNICAL EXPERTS & COMMITTEE ASSIGNMENT
+# =============================================================================
+
+@app.route('/projects/<int:project_id>/experts/assign', methods=['POST'])
+@login_required
+@gea_required
+def assign_expert(project_id):
+    project = Project.query.get_or_404(project_id)
+    expert_id = request.form.get('expert_id')
+    expert = User.query.get_or_404(expert_id)
+    
+    if expert.role != 'technical_expert':
+        flash('Selected user is not a technical expert.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    if expert not in project.technical_experts:
+        project.technical_experts.append(expert)
+        db.session.commit()
+        
+        # Notify expert
+        create_notification(
+            expert.id,
+            'expert_assigned',
+            'Assigned to Project',
+            f'You have been assigned as a technical expert to project {project.reference_number}.',
+            'project',
+            project.id
+        )
+        
+        flash(f'Technical expert {expert.full_name or expert.username} assigned.', 'success')
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+@app.route('/projects/<int:project_id>/committee/assign', methods=['POST'])
+@login_required
+@gea_admin_required
+def assign_committee_member(project_id):
+    project = Project.query.get_or_404(project_id)
+    member_id = request.form.get('member_id')
+    member = User.query.get_or_404(member_id)
+    
+    if member.role != 'cert_committee':
+        flash('Selected user is not a certification committee member.', 'error')
+        return redirect(url_for('view_project', project_id=project_id))
+    
+    if member not in project.committee_members:
+        project.committee_members.append(member)
+        db.session.commit()
+        
+        # Notify member
+        create_notification(
+            member.id,
+            'committee_assigned',
+            'Assigned to Certification Committee',
+            f'You have been assigned to the certification committee for project {project.reference_number}.',
+            'project',
+            project.id
+        )
+        
+        flash(f'Committee member {member.full_name or member.username} assigned.', 'success')
+    
+    return redirect(url_for('view_project', project_id=project_id))
+
+
+# =============================================================================
+# QUALITY CHECKLIST (GEA Review)
+# =============================================================================
+
+@app.route('/api/projects/<int:project_id>/quality-checklist/<int:item_id>/toggle', methods=['POST'])
+@login_required
+@gea_required
+def toggle_quality_checklist(project_id, item_id):
+    item = QualityChecklistItem.query.get_or_404(item_id)
+    
+    if item.project_id != project_id:
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+    
+    item.is_checked = not item.is_checked
+    if item.is_checked:
+        item.checked_by = current_user.id
+        item.checked_at = datetime.utcnow()
+    else:
+        item.checked_by = None
+        item.checked_at = None
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'is_checked': item.is_checked,
+        'checked_by': current_user.full_name or current_user.username if item.is_checked else None
+    })
 
 
 # =============================================================================

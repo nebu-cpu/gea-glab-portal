@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - GEA Portal{% endblock %}
+{% block page_header %}Notifications{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">Your Notifications</h4>
+    {% if notifications %}
+    <button class="btn btn-gea-outline btn-sm" onclick="markAllRead()">
+        <i class="bi bi-check-all me-1"></i>Mark All as Read
+    </button>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if notifications %}
+        <div class="list-group list-group-flush">
+            {% for notification in notifications %}
+            <div class="list-group-item d-flex align-items-start gap-3 {% if not notification.is_read %}bg-light{% endif %}" 
+                 id="notification-{{ notification.id }}">
+                <div class="notification-icon mt-1">
+                    {% if notification.notification_type == 'chat_message' %}
+                    <i class="bi bi-chat-dots text-primary fs-4"></i>
+                    {% elif notification.notification_type == 'announcement' %}
+                    <i class="bi bi-megaphone text-info fs-4"></i>
+                    {% elif notification.notification_type == 'document_review' %}
+                    <i class="bi bi-file-check text-success fs-4"></i>
+                    {% elif notification.notification_type == 'phase_approved' %}
+                    <i class="bi bi-check-circle text-success fs-4"></i>
+                    {% elif notification.notification_type == 'changes_requested' %}
+                    <i class="bi bi-exclamation-circle text-warning fs-4"></i>
+                    {% elif notification.notification_type in ['assessor_assigned', 'expert_assigned', 'committee_assigned'] %}
+                    <i class="bi bi-person-plus text-primary fs-4"></i>
+                    {% elif notification.notification_type in ['license_reminder', 'cpd_reminder', 'recertification_reminder'] %}
+                    <i class="bi bi-bell text-danger fs-4"></i>
+                    {% else %}
+                    <i class="bi bi-info-circle text-secondary fs-4"></i>
+                    {% endif %}
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h6 class="mb-1 {% if not notification.is_read %}fw-bold{% endif %}">
+                            {{ notification.title }}
+                        </h6>
+                        <small class="text-muted">{{ notification.created_at.strftime('%b %d, %H:%M') }}</small>
+                    </div>
+                    <p class="mb-1 text-muted small">{{ notification.message }}</p>
+                    <div class="d-flex gap-2">
+                        {% if notification.link_type == 'project' and notification.link_id %}
+                        <a href="{{ url_for('view_project', project_id=notification.link_id) }}" class="btn btn-sm btn-gea-outline">
+                            View Project
+                        </a>
+                        {% elif notification.link_type == 'announcement' %}
+                        <a href="{{ url_for('list_announcements') }}" class="btn btn-sm btn-gea-outline">
+                            View Announcements
+                        </a>
+                        {% elif notification.link_type == 'cpd' %}
+                        <a href="{{ url_for('list_cpd_logs') }}" class="btn btn-sm btn-gea-outline">
+                            View CPD Logs
+                        </a>
+                        {% endif %}
+                        {% if not notification.is_read %}
+                        <button class="btn btn-sm btn-light" onclick="markRead({{ notification.id }})">
+                            <i class="bi bi-check"></i> Mark Read
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-bell-slash fs-1 text-muted d-block mb-3"></i>
+            <h5 class="text-muted">No notifications</h5>
+            <p class="text-muted small">You're all caught up!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function markRead(notificationId) {
+    fetch(`/api/notifications/${notificationId}/read`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(`notification-${notificationId}`).classList.remove('bg-light');
+            location.reload();
+        }
+    });
+}
+
+function markAllRead() {
+    fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}

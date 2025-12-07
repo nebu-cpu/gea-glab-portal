@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Log CPD Activity - GEA Portal{% endblock %}
+{% block page_header %}Log CPD Activity{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-journal-plus me-2"></i>Log Professional Development Activity
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Activity Type <span class="text-danger">*</span></label>
+                            <select name="activity_type" class="form-select" required>
+                                <option value="">Select type...</option>
+                                <option value="training">Training Course</option>
+                                <option value="workshop">Workshop</option>
+                                <option value="seminar">Seminar/Conference</option>
+                                <option value="webinar">Webinar</option>
+                                <option value="self_study">Self-Study</option>
+                                <option value="mentoring">Mentoring/Coaching</option>
+                                <option value="assessment">Assessment Shadowing</option>
+                                <option value="publication">Publication/Research</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Activity Date <span class="text-danger">*</span></label>
+                            <input type="date" name="activity_date" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Activity Title <span class="text-danger">*</span></label>
+                            <input type="text" name="activity_title" class="form-control" 
+                                   placeholder="e.g., GEA Level 2 Assessor Training" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Hours <span class="text-danger">*</span></label>
+                            <input type="number" name="hours" class="form-control" step="0.5" min="0.5" 
+                                   placeholder="e.g., 8" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Evidence Document</label>
+                            <input type="file" name="evidence" class="form-control" 
+                                   accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">
+                            <small class="text-muted">Upload certificate, attendance proof, etc.</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-control" rows="4" 
+                                      placeholder="Describe what you learned, key takeaways, how it applies to your assessor role..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('list_cpd_logs') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left me-1"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-gea">
+                            <i class="bi bi-check-lg me-1"></i>Submit for Review
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <i class="bi bi-info-circle me-2"></i>CPD Requirements
+            </div>
+            <div class="card-body">
+                <p class="mb-2">As a GEA Assessor, you must maintain your certification through continuous professional development:</p>
+                <ul class="mb-0">
+                    <li><strong>60 hours</strong> of CPD activities required per 3-year certification cycle</li>
+                    <li>Activities must be relevant to assessment, governance, or your area of expertise</li>
+                    <li>Evidence must be provided for all logged activities</li>
+                    <li>CPD logs are reviewed by GEA for approval</li>
+                    <li>Quarterly reminders will be sent to help you stay on track</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
