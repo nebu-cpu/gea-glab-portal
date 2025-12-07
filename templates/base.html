@@ -473,9 +473,14 @@
             
             <div class="nav-section">Communication</div>
             
-            <a href="{{ url_for('list_announcements') }}" class="nav-link {% if 'announcement' in request.endpoint %}active{% endif %}">
+            <a href="{{ url_for('list_announcements') }}" class="nav-link {% if 'announcement' in request.endpoint %}active{% endif %} position-relative">
                 <i class="bi bi-megaphone"></i>
                 <span>Announcements</span>
+                {% if unread_announcements and unread_announcements > 0 %}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                    {{ unread_announcements if unread_announcements < 100 else '99+' }}
+                </span>
+                {% endif %}
             </a>
         </div>
     </nav>

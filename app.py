@@ -399,6 +399,28 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+@app.context_processor
+def inject_global_vars():
+    """Inject global variables into all templates"""
+    if current_user.is_authenticated:
+        # Count unread announcements for this user
+        if current_user.is_gea():
+            # GEA sees all announcements (they don't need notification)
+            unread_announcements = 0
+        else:
+            # GLAB users see announcements for their GLAB or all GLABs
+            unread_announcements = Announcement.query.filter(
+                db.or_(
+                    Announcement.target_glab_id == None,
+                    Announcement.target_glab_id == current_user.glab_id
+                ),
+                Announcement.is_active == True,
+                Announcement.created_at >= current_user.created_at  # Only announcements after user was created
+            ).count()
+        return {'unread_announcements': unread_announcements}
+    return {'unread_announcements': 0}
+
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -516,13 +538,17 @@ def dashboard():
     elif current_user.role == 'glab_admin':
         # GLAB Admin Dashboard
         glab = current_user.glab
-        clients = glab.clients.all() if glab else []
-        projects = glab.projects.order_by(Project.created_at.desc()).all() if glab else []
+        if not glab:
+            flash('Your account is not assigned to a GLAB. Contact GEA admin.', 'error')
+            return redirect(url_for('logout'))
+        
+        clients = glab.clients.all()
+        projects = list(glab.projects.order_by(Project.created_at.desc()).all())
         unread_messages = ChatMessage.query.join(Project).filter(
             Project.glab_id == glab.id,
             ChatMessage.is_read == False,
             ChatMessage.sender_id != current_user.id
-        ).count() if glab else 0
+        ).count()
         
         # Calculate phase counts
         phase_counts = {
@@ -818,28 +844,32 @@ def view_project(project_id):
         flash('Access denied.', 'error')
         return redirect(url_for('dashboard'))
     
-    current_phase = PHASES.get(project.current_phase, {})
-    checklist = ChecklistItem.query.filter_by(
-        project_id=project_id,
-        phase_number=project.current_phase
-    ).order_by(ChecklistItem.order).all()
+    # Get all checklists organized by phase
+    all_checklists = ChecklistItem.query.filter_by(project_id=project_id).order_by(ChecklistItem.order).all()
+    checklist_by_phase = {}
+    for item in all_checklists:
+        if item.phase_number not in checklist_by_phase:
+            checklist_by_phase[item.phase_number] = []
+        checklist_by_phase[item.phase_number].append(item)
     
-    documents = Document.query.filter_by(
-        project_id=project_id,
-        phase_number=project.current_phase
-    ).all()
+    # Get all documents organized by phase and document_key
+    all_documents = Document.query.filter_by(project_id=project_id).all()
+    documents_by_phase = {}
+    for doc in all_documents:
+        if doc.phase_number not in documents_by_phase:
+            documents_by_phase[doc.phase_number] = {}
+        documents_by_phase[doc.phase_number][doc.document_key] = doc
     
-    # Get templates for current phase
-    templates = PhaseTemplate.query.filter_by(
-        phase_number=project.current_phase,
-        is_active=True
-    ).all()
+    # Get all templates organized by phase and document_key
+    all_templates = PhaseTemplate.query.filter_by(is_active=True).all()
+    templates_by_phase = {}
+    for template in all_templates:
+        if template.phase_number not in templates_by_phase:
+            templates_by_phase[template.phase_number] = {}
+        templates_by_phase[template.phase_number][template.document_key] = template
     
     # Get chat messages
     messages = ChatMessage.query.filter_by(project_id=project_id).order_by(ChatMessage.sent_at.desc()).limit(50).all()
-    
-    # Get assigned assessors
-    assessors = project.assessors
     
     # Get available assessors for assignment (GEA/GLAB admin only)
     available_assessors = []
@@ -854,13 +884,10 @@ def view_project(project_id):
     
     return render_template('projects/view.html',
         project=project,
-        current_phase=current_phase,
-        phase_number=project.current_phase,
-        checklist=checklist,
-        documents=documents,
-        templates=templates,
+        checklist_by_phase=checklist_by_phase,
+        documents_by_phase=documents_by_phase,
+        templates_by_phase=templates_by_phase,
         messages=messages,
-        assessors=assessors,
         available_assessors=available_assessors,
         phase_logs=phase_logs,
         phases=PHASES

@@ -13,211 +13,278 @@
         </p>
     </div>
     <div class="d-flex gap-2">
-        <span class="status-badge status-{{ project.gea_proposal_status }} fs-6">
-            GEA: {{ project.gea_proposal_status.replace('_', ' ').title() }}
+        <a href="{{ url_for('project_chat', project_id=project.id) }}" class="btn btn-gea-outline">
+            <i class="bi bi-chat-dots me-1"></i>Chat
+        </a>
+        <span class="badge bg-{{ 'success' if project.gea_status == 'approved' else 'warning' if project.gea_status == 'pending' else 'danger' }} fs-6 align-self-center">
+            GEA: {{ project.gea_status.replace('_', ' ').title() }}
         </span>
     </div>
 </div>
 
-<!-- Phase Workflow -->
+<!-- 8-Phase Workflow Progress -->
 <div class="card mb-4">
     <div class="card-body">
-        <h6 class="text-uppercase text-muted small fw-bold mb-3">Certification Workflow</h6>
-        <div class="phase-workflow">
-            {% set phase_order = ['proposal', 'engagement', 'assessment', 'reporting', 'certification', 'post_certification'] %}
-            {% set current_idx = phase_order.index(project.current_phase) %}
-            
-            {% for phase_key, phase_name in phases %}
-            {% set idx = loop.index0 %}
-            <div class="phase-step {% if idx < current_idx %}completed{% elif idx == current_idx %}active{% endif %}">
-                <div class="phase-number">
-                    {% if idx < current_idx %}
-                    <i class="bi bi-check"></i>
+        <h6 class="text-uppercase text-muted small fw-bold mb-3">Certification Workflow - Phase {{ project.current_phase }} of 8</h6>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            {% for phase_num in range(1, 9) %}
+            <div class="phase-indicator text-center p-2 rounded flex-fill" style="min-width: 100px; 
+                background: {% if phase_num < project.current_phase %}#d1fae5{% elif phase_num == project.current_phase %}#dbeafe{% else %}#f1f5f9{% endif %};
+                border: 2px solid {% if phase_num < project.current_phase %}#10b981{% elif phase_num == project.current_phase %}#3b82f6{% else %}#e2e8f0{% endif %};">
+                <div class="fw-bold" style="color: {% if phase_num < project.current_phase %}#065f46{% elif phase_num == project.current_phase %}#1e40af{% else %}#64748b{% endif %};">
+                    {% if phase_num < project.current_phase %}
+                    <i class="bi bi-check-circle-fill"></i>
                     {% else %}
-                    {{ loop.index }}
+                    {{ phase_num }}
                     {% endif %}
                 </div>
-                <div class="phase-name">{{ phase_name }}</div>
+                <small class="d-block" style="font-size: 0.7rem;">{{ phases[phase_num]['name'][:15] }}{% if phases[phase_num]['name']|length > 15 %}...{% endif %}</small>
             </div>
             {% endfor %}
         </div>
         
-        {% if project.current_phase != 'post_certification' %}
-        <div class="mt-3 text-end">
-            <form action="{{ url_for('advance_phase', project_id=project.id) }}" method="POST" class="d-inline">
-                <button type="submit" class="btn btn-gea" onclick="return confirm('Advance to next phase?')">
-                    <i class="bi bi-arrow-right-circle me-2"></i>Advance to Next Phase
-                </button>
-            </form>
+        <div class="alert alert-info mb-0">
+            <strong>Current Phase:</strong> Phase {{ project.current_phase }} - {{ phases[project.current_phase]['name'] }}
         </div>
-        {% endif %}
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Left Column: Checklist & Documents -->
-    <div class="col-lg-8">
-        <!-- Phase Checklist -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>
-                    <i class="bi bi-check2-square me-2"></i>
-                    {{ project.current_phase.replace('_', ' ').title() }} Phase Checklist
-                </span>
-                <span class="badge bg-light text-dark">
-                    {{ checklist|selectattr('is_completed')|list|length }}/{{ checklist|length }} Complete
-                </span>
-            </div>
-            <div class="card-body">
-                {% for item in checklist %}
-                <div class="checklist-item {% if item.is_completed %}completed{% endif %}" 
-                     data-item-id="{{ item.id }}"
-                     onclick="toggleChecklist({{ project.id }}, {{ item.id }}, this)">
-                    <input type="checkbox" {% if item.is_completed %}checked{% endif %} onclick="event.stopPropagation()">
-                    <div class="item-text">
-                        <div>{{ item.item_text }}</div>
-                        {% if item.is_completed %}
-                        <small class="text-muted">
-                            Completed by {{ item.completed_by }} on {{ item.completed_at.strftime('%b %d, %Y %H:%M') if item.completed_at else 'N/A' }}
-                        </small>
-                        {% endif %}
+<!-- Phase Tabs -->
+<ul class="nav nav-tabs mb-4" id="phaseTabs">
+    {% for phase_num in range(1, 9) %}
+    <li class="nav-item">
+        <a class="nav-link {% if phase_num == project.current_phase %}active{% endif %} {% if phase_num > project.current_phase %}text-muted{% endif %}" 
+           href="#phase{{ phase_num }}" data-bs-toggle="tab">
+            {% if phase_num < project.current_phase %}<i class="bi bi-check-circle-fill text-success me-1"></i>{% endif %}
+            Phase {{ phase_num }}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+<div class="tab-content">
+    {% for phase_num in range(1, 9) %}
+    <div class="tab-pane fade {% if phase_num == project.current_phase %}show active{% endif %}" id="phase{{ phase_num }}">
+        <div class="row g-4">
+            <!-- Left: Checklist & Documents -->
+            <div class="col-lg-8">
+                <!-- Phase Info -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>{{ phases[phase_num]['name'] }}</h6>
                     </div>
-                    {% if item.is_required %}
-                    <span class="required-badge">Required</span>
-                    {% endif %}
-                </div>
-                {% else %}
-                <p class="text-muted text-center py-3">No checklist items for this phase.</p>
-                {% endfor %}
-            </div>
-        </div>
-        
-        <!-- Documents -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-folder me-2"></i>Documents</span>
-                <a href="{{ url_for('upload_document', project_id=project.id) }}" class="btn btn-sm btn-gea">
-                    <i class="bi bi-upload me-1"></i>Upload
-                </a>
-            </div>
-            <div class="card-body">
-                {% for doc in documents %}
-                <div class="document-item">
-                    <div class="doc-icon">
-                        {% if doc.original_filename.endswith('.pdf') %}
-                        <i class="bi bi-file-earmark-pdf"></i>
-                        {% elif doc.original_filename.endswith(('.doc', '.docx')) %}
-                        <i class="bi bi-file-earmark-word"></i>
-                        {% elif doc.original_filename.endswith(('.xls', '.xlsx')) %}
-                        <i class="bi bi-file-earmark-excel"></i>
-                        {% elif doc.original_filename.endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
-                        <i class="bi bi-file-earmark-image"></i>
-                        {% else %}
-                        <i class="bi bi-file-earmark"></i>
-                        {% endif %}
-                    </div>
-                    <div class="doc-info">
-                        <div class="doc-name">{{ doc.original_filename }}</div>
-                        <div class="doc-meta">
-                            {{ doc.document_type.replace('_', ' ').title() }} · 
-                            Uploaded {{ doc.uploaded_at.strftime('%b %d, %Y') }}
-                            {% if doc.file_size %}· {{ (doc.file_size / 1024)|round(1) }} KB{% endif %}
-                        </div>
-                    </div>
-                    <span class="status-badge status-{{ doc.status }}">{{ doc.status.replace('_', ' ').title() }}</span>
-                    <div class="d-flex gap-2">
-                        <a href="{{ url_for('download_document', document_id=doc.id) }}" class="btn btn-sm btn-light" title="Download">
-                            <i class="bi bi-download"></i>
-                        </a>
-                        {% if current_user.role == 'gea_admin' and doc.status == 'pending' %}
-                        <button class="btn btn-sm btn-success" onclick="reviewDocument({{ doc.id }}, 'approved')" title="Approve">
-                            <i class="bi bi-check"></i>
-                        </button>
-                        <button class="btn btn-sm btn-warning" onclick="reviewDocument({{ doc.id }}, 'changes_requested')" title="Request Changes">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="reviewDocument({{ doc.id }}, 'rejected')" title="Reject">
-                            <i class="bi bi-x"></i>
-                        </button>
-                        {% endif %}
+                    <div class="card-body">
+                        <p class="mb-0 text-muted">
+                            {% if phase_num == 1 %}
+                            Initial enrollment and eligibility screening. Organization submits application, GLAB evaluates readiness.
+                            {% elif phase_num == 2 %}
+                            Assessor assignment and ethical safeguards. Conflict of interest declarations and code of conduct.
+                            {% elif phase_num == 3 %}
+                            Optional preliminary assessment for readiness review before formal engagement.
+                            {% elif phase_num == 4 %}
+                            Formal engagement and planning. Letter of engagement, scope definition, and timeline.
+                            {% elif phase_num == 5 %}
+                            Formal assessment fieldwork. Evidence collection, triangulation, and non-conformance tracking.
+                            {% elif phase_num == 6 %}
+                            Report drafting and peer review. Quality assurance before certification decision.
+                            {% elif phase_num == 7 %}
+                            Certification decision by committee. Final review and outcome communication.
+                            {% elif phase_num == 8 %}
+                            Post-certification obligations. Change notifications and ongoing compliance.
+                            {% endif %}
+                        </p>
                     </div>
                 </div>
-                {% else %}
-                <div class="text-center py-4">
-                    <i class="bi bi-folder-x fs-1 text-muted d-block mb-2"></i>
-                    <p class="text-muted mb-3">No documents uploaded yet</p>
-                    <a href="{{ url_for('upload_document', project_id=project.id) }}" class="btn btn-gea-outline btn-sm">
-                        <i class="bi bi-upload me-1"></i>Upload First Document
-                    </a>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        
-        <!-- Phase History -->
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-clock-history me-2"></i>Activity Log
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for log in phase_logs[:10] %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between">
-                            <div>
-                                <strong>{{ log.action.title() }}</strong>
-                                {% if log.from_phase %}
-                                from {{ log.from_phase.replace('_', ' ').title() }}
+                
+                <!-- Phase Checklist -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-check2-square me-2"></i>Phase {{ phase_num }} Checklist</span>
+                        {% set phase_checklist = checklist_by_phase.get(phase_num, []) %}
+                        {% set completed_count = phase_checklist|selectattr('is_completed')|list|length %}
+                        <span class="badge bg-{{ 'success' if completed_count == phase_checklist|length and phase_checklist|length > 0 else 'secondary' }}">
+                            {{ completed_count }}/{{ phase_checklist|length }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        {% for item in phase_checklist %}
+                        <div class="checklist-item d-flex align-items-start gap-3 p-2 rounded mb-2 {% if item.is_completed %}bg-light{% endif %}" 
+                             style="cursor: {% if phase_num == project.current_phase and (current_user.role in ['glab_admin', 'glab_assessor'] or current_user.is_gea()) %}pointer{% else %}default{% endif %};"
+                             {% if phase_num == project.current_phase %}onclick="toggleChecklist({{ project.id }}, {{ item.id }}, this)"{% endif %}>
+                            <input type="checkbox" class="form-check-input mt-1" {% if item.is_completed %}checked{% endif %} 
+                                   {% if phase_num != project.current_phase %}disabled{% endif %}>
+                            <div class="flex-grow-1">
+                                <div class="{% if item.is_completed %}text-decoration-line-through text-muted{% endif %}">
+                                    {{ item.item_text }}
+                                </div>
+                                {% if item.is_completed and item.completer %}
+                                <small class="text-muted">
+                                    <i class="bi bi-check me-1"></i>{{ item.completer.full_name or item.completer.username }} · {{ item.completed_at.strftime('%b %d, %Y') if item.completed_at else '' }}
+                                </small>
                                 {% endif %}
-                                to {{ log.to_phase.replace('_', ' ').title() }}
                             </div>
-                            <small class="text-muted">{{ log.performed_at.strftime('%b %d, %Y %H:%M') }}</small>
+                            {% if item.is_required %}
+                            <span class="badge bg-danger-subtle text-danger">Required</span>
+                            {% endif %}
                         </div>
-                        <small class="text-muted">by {{ log.performed_by or 'System' }}</small>
+                        {% else %}
+                        <p class="text-muted text-center py-3 mb-0">No checklist items defined.</p>
+                        {% endfor %}
                     </div>
-                    {% else %}
-                    <div class="list-group-item text-center text-muted py-4">
-                        No activity recorded yet
+                </div>
+                
+                <!-- Phase Documents -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-folder me-2"></i>Phase {{ phase_num }} Documents</span>
+                        {% if phase_num == project.current_phase %}
+                        <a href="{{ url_for('upload_document', project_id=project.id) }}?phase={{ phase_num }}" class="btn btn-sm btn-gea">
+                            <i class="bi bi-upload me-1"></i>Upload
+                        </a>
+                        {% endif %}
                     </div>
-                    {% endfor %}
+                    <div class="card-body">
+                        <!-- Required Documents for this Phase -->
+                        <h6 class="small text-muted mb-3">Required Documents:</h6>
+                        {% for doc_def in phases[phase_num]['documents'] %}
+                        {% set uploaded_doc = documents_by_phase.get(phase_num, {}).get(doc_def['key']) %}
+                        <div class="d-flex align-items-center gap-3 p-2 rounded mb-2" style="background: {% if uploaded_doc %}#d1fae5{% else %}#fef3c7{% endif %};">
+                            <i class="bi {% if uploaded_doc %}bi-file-earmark-check text-success{% else %}bi-file-earmark-x text-warning{% endif %} fs-4"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-medium">{{ doc_def['name'] }}</div>
+                                {% if uploaded_doc %}
+                                <small class="text-muted">
+                                    {{ uploaded_doc.original_filename }} · 
+                                    <span class="badge bg-{{ 'success' if uploaded_doc.status == 'approved' else 'warning' if uploaded_doc.status == 'pending' else 'danger' }}">
+                                        {{ uploaded_doc.status.title() }}
+                                    </span>
+                                </small>
+                                {% else %}
+                                <small class="text-warning">Not uploaded</small>
+                                {% endif %}
+                            </div>
+                            {% if uploaded_doc %}
+                            <a href="{{ url_for('download_document', document_id=uploaded_doc.id) }}" class="btn btn-sm btn-light">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            {% endif %}
+                            <!-- Download Template if available -->
+                            {% set template = templates_by_phase.get(phase_num, {}).get(doc_def['key']) %}
+                            {% if template %}
+                            <a href="{{ url_for('download_template', template_id=template.id) }}" class="btn btn-sm btn-outline-primary" title="Download Template">
+                                <i class="bi bi-file-arrow-down"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right: GEA Review & Actions -->
+            <div class="col-lg-4">
+                {% if phase_num == project.current_phase %}
+                <!-- GEA Review Panel -->
+                {% if current_user.is_gea() %}
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-shield-check me-2"></i>GEA Review
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('review_project', project_id=project.id) }}" method="POST">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Review Notes</label>
+                                <textarea name="notes" class="form-control" rows="3" placeholder="Enter review comments...">{{ project.gea_notes or '' }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Decision</label>
+                                <div class="d-grid gap-2">
+                                    <button type="submit" name="action" value="approved" class="btn btn-success">
+                                        <i class="bi bi-check-circle me-2"></i>Approve Phase
+                                    </button>
+                                    <button type="submit" name="action" value="changes_requested" class="btn btn-warning">
+                                        <i class="bi bi-pencil me-2"></i>Request Changes
+                                    </button>
+                                    <button type="submit" name="action" value="rejected" class="btn btn-danger">
+                                        <i class="bi bi-x-circle me-2"></i>Reject
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Advance Phase Button (for GLAB) -->
+                {% if not current_user.is_gea() and project.gea_status == 'approved' and project.current_phase < 8 %}
+                <div class="card mb-4 border-success">
+                    <div class="card-body text-center">
+                        <i class="bi bi-arrow-right-circle fs-1 text-success d-block mb-2"></i>
+                        <h6>Ready to Proceed</h6>
+                        <p class="small text-muted">GEA has approved this phase. You can now advance to the next phase.</p>
+                        <form action="{{ url_for('advance_phase', project_id=project.id) }}" method="POST">
+                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Advance to Phase {{ project.current_phase + 1 }}?')">
+                                <i class="bi bi-arrow-right me-2"></i>Proceed to Phase {{ project.current_phase + 1 }}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% elif not current_user.is_gea() and project.gea_status == 'pending' %}
+                <div class="card mb-4 border-warning">
+                    <div class="card-body text-center">
+                        <i class="bi bi-hourglass-split fs-1 text-warning d-block mb-2"></i>
+                        <h6>Awaiting GEA Review</h6>
+                        <p class="small text-muted mb-0">Complete all checklist items and upload required documents. GEA will review before you can proceed.</p>
+                    </div>
+                </div>
+                {% elif not current_user.is_gea() and project.gea_status == 'changes_requested' %}
+                <div class="card mb-4 border-danger">
+                    <div class="card-body text-center">
+                        <i class="bi bi-exclamation-triangle fs-1 text-danger d-block mb-2"></i>
+                        <h6>Changes Requested</h6>
+                        <p class="small text-muted mb-0">GEA has requested changes. Please review comments and make corrections.</p>
+                        {% if project.gea_notes %}
+                        <hr>
+                        <p class="small text-start"><strong>GEA Notes:</strong><br>{{ project.gea_notes }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                
+                <!-- Phase Status -->
+                <div class="card mb-4">
+                    <div class="card-header">Phase {{ phase_num }} Status</div>
+                    <div class="card-body">
+                        {% if phase_num < project.current_phase %}
+                        <div class="text-center text-success">
+                            <i class="bi bi-check-circle-fill fs-1 d-block mb-2"></i>
+                            <strong>Completed</strong>
+                        </div>
+                        {% elif phase_num == project.current_phase %}
+                        <div class="text-center text-primary">
+                            <i class="bi bi-play-circle-fill fs-1 d-block mb-2"></i>
+                            <strong>In Progress</strong>
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted">
+                            <i class="bi bi-lock-fill fs-1 d-block mb-2"></i>
+                            <strong>Locked</strong>
+                            <p class="small mb-0">Complete previous phases first</p>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Right Column: Project Info & Financials -->
+    {% endfor %}
+</div>
+
+<!-- Project Info Sidebar -->
+<div class="row mt-4">
     <div class="col-lg-4">
-        <!-- GEA Review (if pending) -->
-        {% if current_user.role == 'gea_admin' and project.gea_proposal_status == 'pending' %}
-        <div class="card mb-4 border-warning">
-            <div class="card-header bg-warning text-dark">
-                <i class="bi bi-clipboard-check me-2"></i>GEA Review Required
-            </div>
-            <div class="card-body">
-                <p class="small text-muted mb-3">Review this proposal per Article 4.2 of the Financial Operations Framework.</p>
-                <form action="{{ url_for('review_project', project_id=project.id) }}" method="POST">
-                    <div class="mb-3">
-                        <label class="form-label small">Review Notes</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="Optional notes..."></textarea>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="submit" name="action" value="approved" class="btn btn-success btn-sm flex-fill">
-                            <i class="bi bi-check"></i> Approve
-                        </button>
-                        <button type="submit" name="action" value="adjustment_required" class="btn btn-warning btn-sm flex-fill">
-                            <i class="bi bi-pencil"></i> Adjust
-                        </button>
-                        <button type="submit" name="action" value="rejected" class="btn btn-danger btn-sm flex-fill">
-                            <i class="bi bi-x"></i> Reject
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        {% endif %}
-        
-        <!-- Project Details -->
-        <div class="card mb-4">
+        <div class="card">
             <div class="card-header">Project Information</div>
             <div class="card-body">
                 <table class="table table-sm table-borderless mb-0">
@@ -226,168 +293,76 @@
                         <td class="text-end fw-medium">{{ project.glab.name }}</td>
                     </tr>
                     <tr>
-                        <td class="text-muted">License</td>
-                        <td class="text-end">{{ project.glab.license_number }}</td>
-                    </tr>
-                    <tr>
                         <td class="text-muted">Client</td>
                         <td class="text-end fw-medium">{{ project.client.name }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Country</td>
-                        <td class="text-end">{{ project.client.country }}</td>
                     </tr>
                     <tr>
                         <td class="text-muted">Type</td>
                         <td class="text-end">{{ project.assessment_type.replace('_', ' ').title() }}</td>
                     </tr>
                     <tr>
-                        <td class="text-muted">Lead Assessor</td>
-                        <td class="text-end">{{ project.lead_assessor or '-' }}</td>
-                    </tr>
-                    <tr>
                         <td class="text-muted">Created</td>
                         <td class="text-end">{{ project.created_at.strftime('%b %d, %Y') }}</td>
                     </tr>
+                    <tr>
+                        <td class="text-muted">Lead Assessor</td>
+                        <td class="text-end">{{ project.lead_assessor or '-' }}</td>
+                    </tr>
                 </table>
             </div>
         </div>
-        
-        <!-- Financial Summary -->
-        <div class="card mb-4">
-            <div class="card-header">Financial Summary</div>
-            <div class="card-body">
-                {% if project.total_assessment_fees %}
-                <div class="mb-3 pb-3 border-bottom">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted">Assessment Days</span>
-                        <span>{{ project.assessment_days }} days × ${{ "{:,.2f}".format(project.day_rate or 0) }}</span>
-                    </div>
-                    {% if project.multi_site_premium > 0 %}
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted">Multi-Site Premium</span>
-                        <span>${{ "{:,.2f}".format(project.multi_site_premium) }}</span>
-                    </div>
-                    {% endif %}
-                    {% if project.other_fees > 0 %}
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-muted">Other Fees</span>
-                        <span>${{ "{:,.2f}".format(project.other_fees) }}</span>
-                    </div>
-                    {% endif %}
-                    <div class="d-flex justify-content-between fw-bold">
-                        <span>Total Assessment Fees</span>
-                        <span>${{ "{:,.2f}".format(project.total_assessment_fees) }}</span>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-1">
-                        <span class="text-danger">GEA Fee (15%)</span>
-                        <span class="text-danger fw-bold">${{ "{:,.2f}".format(project.gea_fee or 0) }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span class="text-success">GLAB Revenue (85%)</span>
-                        <span class="text-success fw-bold">${{ "{:,.2f}".format(project.glab_revenue or 0) }}</span>
-                    </div>
-                </div>
-                
-                {% if project.travel_accommodation > 0 %}
-                <div class="pt-3 border-top">
-                    <div class="d-flex justify-content-between text-muted">
-                        <span>Travel & Accommodation</span>
-                        <span>${{ "{:,.2f}".format(project.travel_accommodation) }}</span>
-                    </div>
-                    <small class="text-muted">Not subject to GEA fee</small>
-                </div>
-                {% endif %}
-                {% else %}
-                <p class="text-muted text-center mb-0">No financial data entered</p>
-                {% endif %}
-            </div>
-        </div>
-        
-        <!-- Payment Status -->
-        <div class="card mb-4">
-            <div class="card-header">Payment Status</div>
-            <div class="card-body">
-                <!-- Initial Payment -->
-                <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
-                    <div>
-                        <div class="fw-medium">Initial Payment (50%)</div>
-                        <small class="text-muted">Due upon signing</small>
-                    </div>
-                    {% if project.initial_payment_received %}
-                    <span class="badge bg-success"><i class="bi bi-check"></i> Received</span>
-                    {% else %}
-                    <button class="btn btn-sm btn-gea-outline" data-bs-toggle="modal" data-bs-target="#paymentModal" data-type="initial">
-                        Record
-                    </button>
-                    {% endif %}
-                </div>
-                
-                <!-- Final Payment -->
-                <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
-                    <div>
-                        <div class="fw-medium">Final Payment (50%)</div>
-                        <small class="text-muted">Due upon report delivery</small>
-                    </div>
-                    {% if project.final_payment_received %}
-                    <span class="badge bg-success"><i class="bi bi-check"></i> Received</span>
-                    {% else %}
-                    <button class="btn btn-sm btn-gea-outline" data-bs-toggle="modal" data-bs-target="#paymentModal" data-type="final">
-                        Record
-                    </button>
-                    {% endif %}
-                </div>
-                
-                <!-- GEA Fee Remittance -->
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="fw-medium">GEA Fee Remittance</div>
-                        <small class="text-muted">15% due within 5 days of payment</small>
-                    </div>
-                    {% if project.gea_fee_remitted %}
-                    <span class="badge bg-success"><i class="bi bi-check"></i> Remitted</span>
-                    {% else %}
-                    <button class="btn btn-sm btn-gea-outline" data-bs-toggle="modal" data-bs-target="#remittanceModal">
-                        Record
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        
-        <!-- Timeline -->
+    </div>
+    <div class="col-lg-4">
         <div class="card">
-            <div class="card-header">Timeline</div>
+            <div class="card-header">Assigned Assessors</div>
+            <div class="card-body">
+                {% if project.assessors %}
+                {% for assessor in project.assessors %}
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="user-avatar" style="width: 32px; height: 32px; font-size: 0.8rem;">{{ assessor.username[0].upper() }}</div>
+                    <div>
+                        <div class="small fw-medium">{{ assessor.full_name or assessor.username }}</div>
+                        <div class="small text-muted">{{ assessor.email }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted small mb-0">No assessors assigned yet.</p>
+                {% endif %}
+                {% if current_user.role == 'glab_admin' %}
+                <a href="{{ url_for('manage_assessors', project_id=project.id) }}" class="btn btn-sm btn-gea-outline mt-2">
+                    <i class="bi bi-person-plus me-1"></i>Manage Assessors
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">Financial Summary</div>
             <div class="card-body">
                 <table class="table table-sm table-borderless mb-0">
                     <tr>
-                        <td class="text-muted">Start Date</td>
-                        <td class="text-end">{{ project.proposed_start_date.strftime('%b %d, %Y') if project.proposed_start_date else '-' }}</td>
+                        <td class="text-muted">Total Fee</td>
+                        <td class="text-end fw-medium">${{ "{:,.2f}".format(project.total_fee or 0) }}</td>
                     </tr>
                     <tr>
-                        <td class="text-muted">Document Review</td>
-                        <td class="text-end">{{ project.document_review_date.strftime('%b %d, %Y') if project.document_review_date else '-' }}</td>
+                        <td class="text-muted">Paid</td>
+                        <td class="text-end text-success">${{ "{:,.2f}".format(project.amount_paid or 0) }}</td>
                     </tr>
                     <tr>
-                        <td class="text-muted">On-site Assessment</td>
+                        <td class="text-muted">GEA Fee (10%)</td>
+                        <td class="text-end">${{ "{:,.2f}".format(project.gea_fee or 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">GEA Remitted</td>
                         <td class="text-end">
-                            {% if project.onsite_assessment_start %}
-                            {{ project.onsite_assessment_start.strftime('%b %d') }} - {{ project.onsite_assessment_end.strftime('%b %d, %Y') if project.onsite_assessment_end else 'TBD' }}
+                            {% if project.gea_fee_remitted %}
+                            <span class="badge bg-success">Yes</span>
                             {% else %}
-                            -
+                            <span class="badge bg-warning">Pending</span>
                             {% endif %}
                         </td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Draft Report</td>
-                        <td class="text-end">{{ project.draft_report_date.strftime('%b %d, %Y') if project.draft_report_date else '-' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="text-muted">Final Report</td>
-                        <td class="text-end">{{ project.final_report_date.strftime('%b %d, %Y') if project.final_report_date else '-' }}</td>
                     </tr>
                 </table>
             </div>
@@ -395,105 +370,26 @@
     </div>
 </div>
 
-<!-- Payment Modal -->
-<div class="modal fade" id="paymentModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('record_payment', project_id=project.id) }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Record Payment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="payment_type" id="payment_type">
-                    <div class="mb-3">
-                        <label class="form-label">Amount Received (USD)</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="number" name="amount" class="form-control" step="0.01" required>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Payment Date</label>
-                        <input type="date" name="payment_date" class="form-control" value="{{ now().strftime('%Y-%m-%d') if now is defined else '' }}">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-gea">Record Payment</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Remittance Modal -->
-<div class="modal fade" id="remittanceModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('record_remittance', project_id=project.id) }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Record GEA Fee Remittance</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <strong>GEA Fee Due:</strong> ${{ "{:,.2f}".format(project.gea_fee or 0) }}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Remittance Date</label>
-                        <input type="date" name="remittance_date" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-gea">Confirm Remittance</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Document Review Form (hidden) -->
-<form id="documentReviewForm" method="POST" style="display:none;">
-    <input type="hidden" name="action" id="doc_action">
-    <input type="hidden" name="notes" id="doc_notes">
-</form>
-{% endblock %}
-
-{% block extra_js %}
 <script>
-// Toggle checklist item
 function toggleChecklist(projectId, itemId, element) {
-    fetch(`/projects/${projectId}/checklist/${itemId}/toggle`, {
+    fetch(`/api/projects/${projectId}/checklist/${itemId}/toggle`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'}
+        headers: {
+            'Content-Type': 'application/json',
+        }
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            element.classList.toggle('completed', data.is_completed);
-            element.querySelector('input[type="checkbox"]').checked = data.is_completed;
-            location.reload(); // Refresh to update counts
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to update checklist');
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to update checklist');
     });
 }
-
-// Review document
-function reviewDocument(docId, action) {
-    const notes = prompt('Enter review notes (optional):');
-    const form = document.getElementById('documentReviewForm');
-    form.action = `/documents/${docId}/review`;
-    document.getElementById('doc_action').value = action;
-    document.getElementById('doc_notes').value = notes || '';
-    form.submit();
-}
-
-// Payment modal
-document.getElementById('paymentModal')?.addEventListener('show.bs.modal', function(event) {
-    const button = event.relatedTarget;
-    const type = button.getAttribute('data-type');
-    document.getElementById('payment_type').value = type;
-});
 </script>
 {% endblock %}
